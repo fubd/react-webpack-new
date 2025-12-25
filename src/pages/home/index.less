@@ -1,0 +1,46 @@
+.homeWrapper {
+  .hero {
+    text-align: center;
+    padding: 80px 0 60px;
+    background: var(--dot-custom-home-hero-bg);
+    border-radius: 24px;
+    margin-bottom: 40px;
+  }
+
+  .heroTitle {
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--dot-color-text);
+    margin-bottom: 16px;
+    letter-spacing: -1px;
+  }
+
+  .heroSubtitle {
+    font-size: 18px;
+    color: var(--dot-color-text-secondary);
+    max-width: 600px;
+    margin: 0 auto 32px;
+    line-height: 1.6;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+  }
+
+  .card {
+    background: var(--dot-color-bg-container);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid var(--dot-color-border);
+
+    &:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1),
+        0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+  }
+}
