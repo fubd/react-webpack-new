@@ -1,11 +1,13 @@
-import React from 'react';
-import {calc} from '@/utils';
-import {Card} from 'antd';
+import {Button, Card} from 'antd';
 
 function News() {
   return <div>
     <Card title="News">
-      {calc(1,2)}
+      what the hell
+      <br />
+      look into the sky.
+      <br />
+      <Button type="primary">click me</Button>
     </Card>
   </div>;
 }

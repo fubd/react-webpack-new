@@ -66,7 +66,10 @@ export default [
       '@stylistic/jsx-quotes': ['error', 'prefer-double'],
 
       // 箭头函数参数必须有括号
-      '@stylistic/arrow-parens': ['error', 'always'],
+      '@stylistic/arrow-parens': 0,
+
+      // 禁止多余的连续空行（最多1行，文件末尾/开头0行）
+      '@stylistic/no-multiple-empty-lines': ['error', { max: 1, maxEOF: 0, maxBOF: 0 }],
 
       // 对象大括号内的空格：关闭检查，以允许灵活的写法
       '@stylistic/object-curly-spacing': ['error', 'never'],

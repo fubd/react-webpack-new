@@ -2,7 +2,6 @@ import React from 'react';
 import {Button, Modal, Typography, Space, theme} from 'antd';
 import {ThunderboltOutlined, SafetyCertificateOutlined, CloudServerOutlined} from '@ant-design/icons';
 import './index.less';
-import {calc} from '@/utils';
 
 const {Title, Paragraph} = Typography;
 
@@ -12,8 +11,6 @@ const Home: React.FC = () => {
 
   return (
     <div className="homeWrapper">
-      {/* Hero Section */}
-      {calc(2, 2)}
       <div className="hero">
         <h1 className="heroTitle">Build Faster with Dot</h1>
         <p className="heroSubtitle">

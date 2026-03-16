@@ -1,28 +1,14 @@
-import React from 'react';
 import {Menu, theme} from 'antd';
 import {Outlet, useLocation, useNavigate} from 'react-router-dom';
 import './MainLayout.less';
+import routes from '@/routes';
 
-const MainLayout: React.FC = () => {
+const MENU_ITEMS = routes.map((r) => ({key: r.path, label: r.label}));
+
+const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const {cssVar, token} = theme.useToken();
-  console.log(cssVar);
-
-  const menuItems = [
-    {
-      key: '/',
-      label: 'Home',
-    },
-    {
-      key: '/about',
-      label: 'About',
-    },
-    {
-      key: '/news',
-      label: 'News',
-    },
-  ];
+  const {token} = theme.useToken();
 
   return (
     <div style={{minHeight: '100vh', background: token.colorBgLayout, display: 'flex', flexDirection: 'column'}}>
@@ -34,7 +20,7 @@ const MainLayout: React.FC = () => {
           theme="light"
           mode="horizontal"
           selectedKeys={[location.pathname]}
-          items={menuItems}
+          items={MENU_ITEMS}
           onClick={(e) => navigate(e.key)}
           className="menu"
         />

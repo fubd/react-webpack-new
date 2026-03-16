@@ -1,12 +1,15 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
 const ConsoleLogOnBuildWebpackPlugin = require('./plugins/ConsoleLogOnBuildWebpackPlugin');
 const TerserPlugin = require('terser-webpack-plugin');
+const ESLintPlugin = require('eslint-webpack-plugin');
 
 // 判断当前是否为开发模式
 // process.env.NODE_ENV 在 package.json scripts 中设置
 const isDev = process.env.NODE_ENV === 'development';
+
 module.exports = {
   // 入口文件：应用程序的起点
   entry: './src/index.tsx',
@@ -20,6 +23,13 @@ module.exports = {
     filename: '[name].[contenthash].js',
     // 每次构建前清理 dist 目录，防止旧文件堆积
     clean: true,
+    // 确保资源路径始终从根路径开始，避免子路由下静态资源 404
+    publicPath: '/',
+  },
+
+  // 文件系统缓存：大幅提升二次构建速度（首次构建后生效）
+  cache: {
+    type: 'filesystem',
   },
 
   module: {
@@ -52,7 +62,13 @@ module.exports = {
       {
         test: /\.(png|jpg|jpeg|gif|svg)$/i,
         // Webpack 5 内置资源处理模块
-        type: 'asset/resource',
+        // 小于 8kb 自动转 base64 内联，减少 HTTP 请求；大于 8kb 输出独立文件
+        type: 'asset',
+        parser: {
+          dataUrlCondition: {
+            maxSize: 8 * 1024, // 8kb
+          },
+        },
       },
     ],
   },
@@ -76,6 +92,15 @@ module.exports = {
     !isDev && new MiniCssExtractPlugin({
       filename: 'css/[name].[contenthash].css',
     }),
+
+    // ESLint 实时检查：构建时在终端显示 lint 错误
+    // 开发环境仅警告不中断，生产环境让 lint 错误阻断构建
+    new ESLintPlugin({
+      extensions: ['js', 'jsx', 'ts', 'tsx'],
+      context: path.resolve(__dirname, 'src'),
+      failOnError: !isDev,
+    }),
+
     new ConsoleLogOnBuildWebpackPlugin(),
   ].filter(Boolean), // 过滤掉 false 的项 (开发环境不加入 MiniCssExtractPlugin)
 
@@ -103,7 +128,11 @@ module.exports = {
 
     ...(isDev ? {} : {
       minimize: true,
-      minimizer: [new TerserPlugin({extractComments: false})],
+      minimizer: [
+        new TerserPlugin({extractComments: false}),
+        // CSS 压缩（生产环境，配合 MiniCssExtractPlugin 使用）
+        new CssMinimizerPlugin(),
+      ],
     }),
   },
 
@@ -114,18 +143,21 @@ module.exports = {
     },
     compress: true, // 开启 gzip 压缩
     port: 3000,
-    hot: true, //热更新
+    hot: true, // 热更新
     open: true, // 启动后自动打开浏览器
+    // 解决 BrowserRouter 刷新 404：将所有 404 重定向回 index.html
+    historyApiFallback: true,
     devMiddleware: {
       // 将开发环境下所有文件包括sourceMap写入磁盘而不是内存
       writeToDisk: false,
+      publicPath: '/',
     },
   },
 
   // Source Map 配置
-  // 开发环境用 'source-map' 或 'eval-source-map' 方便调试
+  // eval-cheap-module-source-map：开发环境首选，重新构建速度比 source-map 快很多
   // 生产环境通常不开启或使用 'hidden-source-map' 防止源码泄露
-  devtool: isDev ? 'source-map' : false,
+  devtool: isDev ? 'eval-cheap-module-source-map' : false,
 
   // 控制台输出日志控制
   stats: 'errors-only',

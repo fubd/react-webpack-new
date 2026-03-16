@@ -1,163 +1,105 @@
-const webpack = require('webpack');
-const Table = require('cli-table3');
-
 const readline = require('readline');
+
+// ─── ANSI 颜色/样式工具 ──────────────────────────────────────
+const c = {
+  reset:  '\x1b[0m',
+  bold:   '\x1b[1m',
+  dim:    '\x1b[2m',
+  // 前景色
+  red:    '\x1b[31m',
+  green:  '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue:   '\x1b[34m',
+  magenta:'\x1b[35m',
+  cyan:   '\x1b[36m',
+  white:  '\x1b[97m',
+  gray:   '\x1b[90m',
+};
+
+const paint = (color, text) => `${color}${text}${c.reset}`;
+const bold  = (text)        => `${c.bold}${text}${c.reset}`;
+const dim   = (text)        => `${c.dim}${text}${c.reset}`;
+
+function formatSize(bytes) {
+  if (bytes > 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  return `${(bytes / 1024).toFixed(2)} kB`;
+}
 
 class ConsoleLogOnBuildWebpackPlugin {
   apply(compiler) {
-    const spinners = ['⣾', '⣽', '⣻', '⢿', '⡿', '⣟', '⣯', '⣷'];
-    let spinnerIdx = 0;
-    let spinnerTimer = null;
-    
-    const startSpinner = () => {
-      if (!spinnerTimer) {
-        spinnerTimer = setInterval(() => {
-          spinnerIdx = (spinnerIdx + 1) % spinners.length;
-        }, 80);
-      }
-    };
-    
-    const stopSpinner = () => {
-      if (spinnerTimer) {
-        clearInterval(spinnerTimer);
-        spinnerTimer = null;
-      }
-    };
+    const isDev = compiler.options.mode === 'development';
 
-    const handler = (percentage, message, ...args) => {
-      startSpinner();
-      
-      const p = Math.floor(percentage * 100);
-      const argsText = args.length > 0 ? args.join(' ') : '';
-      
-      // Gradient bar with blocks
-      const length = 25;
-      const progress = Math.round(length * percentage);
-      
-      // Use gradient blocks for a modern look
-      const blocks = ['█', '▓', '▒', '░'];
-      let bar = '';
-      
-      for (let i = 0; i < length; i++) {
-        if (i < progress) {
-          bar += blocks[0];
-        } else if (i === progress && percentage < 1) {
-          bar += blocks[1]; // Gradient effect at the edge
-        } else {
-          bar += blocks[3];
-        }
-      }
-      
-      // Truncate text to fit terminal
-      const cols = process.stdout.columns || 80;
-      const availableSpace = Math.max(0, cols - 50);
-      let content = `${message} ${argsText}`;
-      
-      if (content.length > availableSpace) {
-        content = content.slice(0, availableSpace - 3) + '...';
-      }
-
+    // 开发环境: 只在控制台打印一行即可，不刷屏
+    // 生产环境: 同样保持极简风格
+    compiler.hooks.done.tap('ConsoleLogOnBuildWebpackPlugin', (stats) => {
+      // 抹除原本可能存在的零碎内容，确保换行干净
       readline.clearLine(process.stdout, 0);
       readline.cursorTo(process.stdout, 0);
-      
-      // Color gradient: Blue -> Cyan -> Green as progress increases
-      let barColor = '\x1b[36m'; // Cyan default
-      if (percentage < 0.33) {
-        barColor = '\x1b[34m'; // Blue
-      } else if (percentage < 0.66) {
-        barColor = '\x1b[36m'; // Cyan
-      } else {
-        barColor = '\x1b[32m'; // Green
-      }
-      
-      const spinnerChar = spinners[spinnerIdx];
-      process.stdout.write(`\x1b[35m${spinnerChar}\x1b[0m ${barColor}${bar}\x1b[0m \x1b[1m${p}%\x1b[0m ${content}`);
-      
-      if (percentage === 1) {
-        process.stdout.write('\n');
-        stopSpinner();
-      }
-    };
+      console.log(); // 空一行
 
-    new webpack.ProgressPlugin(handler).apply(compiler);
-    
-    compiler.hooks.done.tap('ConsoleLogOnBuildWebpackPlugin', (stats) => {
-      stopSpinner();
-      console.log('\n');
-
-      const data = stats.toJson();
-      const time = ((stats.endTime - stats.startTime) / 1000).toFixed(2);
-      
-      // Modern minimalist table with clean lines
-      const table = new Table({
-        head: ['\x1b[1m\x1b[36mItem\x1b[0m', '\x1b[1m\x1b[36mValue\x1b[0m'],
-        chars: { 
-          'top': '─', 'top-mid': '┬', 'top-left': '┌', 'top-right': '┐',
-          'bottom': '─', 'bottom-mid': '┴', 'bottom-left': '└', 'bottom-right': '┘',
-          'left': '│', 'left-mid': '├', 'mid': '─', 'mid-mid': '┼',
-          'right': '│', 'right-mid': '┤', 'middle': '│',
-        },
-        style: {
-          head: [],
-          border: ['cyan'],
-        },
+      const buildTime = ((stats.endTime - stats.startTime) / 1000).toFixed(2);
+      const json = stats.toJson({ 
+        assets: true, 
+        chunks: false, 
+        modules: false, 
       });
 
-      // Build Status with modern icons
-      let status = '';
-      let statusIcon = '';
+      // 1. 打印构建状态（错误处理保持在最前）
       if (stats.hasErrors()) {
-        status = '\x1b[31m\x1b[1mFailed\x1b[0m';
-        statusIcon = '✗';
-      } else if (stats.hasWarnings()) {
-        status = '\x1b[33m\x1b[1mWarning\x1b[0m';
-        statusIcon = '⚠';
-      } else {
-        status = '\x1b[32m\x1b[1mSuccess\x1b[0m';
-        statusIcon = '✓';
+        console.log(`  ${bold(paint(c.red, '✗ build failed'))} in ${buildTime}s\n`);
+        json.errors.forEach(err => console.error(paint(c.red, `${err.message}`)));
+        return;
       }
 
-      table.push(
-        ['Status', `${statusIcon} ${status}`],
-        ['Build Time', `\x1b[35m${time}s\x1b[0m`],
-        ['Webpack', `\x1b[90mv${webpack.version}\x1b[0m`],
-      );
-
-      // Add Asset Information with better formatting
-      if (data.assets && data.assets.length > 0) {
-        table.push([{colSpan: 2, content: '\x1b[1m\x1b[36m── Assets ──\x1b[0m', hAlign: 'center'}]);
-        
-        const assets = data.assets.sort((a, b) => b.size - a.size).slice(0, 5);
-        
-        assets.forEach((asset) => {
-          const sizeKb = asset.size / 1024;
-          let sizeColor = '\x1b[32m'; // Green
-          let sizeIcon = '●';
-          
-          if (sizeKb > 500) {
-            sizeColor = '\x1b[31m'; // Red
-            sizeIcon = '●';
-          } else if (sizeKb > 250) {
-            sizeColor = '\x1b[33m'; // Yellow
-            sizeIcon = '●';
-          }
-          
-          const size = `${sizeColor}${sizeIcon}\x1b[0m ${sizeKb.toFixed(2)} KB`;
-          table.push([`  ${asset.name}`, size]);
+      // 2. 打印产物列表 (参考 Vite 风格)
+      if (json.assets && json.assets.length > 0) {
+        // 排序：JS 和 CSS 放前面，然后按大小降序
+        const sortedAssets = [...json.assets].sort((a, b) => {
+          const aExt = a.name.split('.').pop();
+          const bExt = b.name.split('.').pop();
+          if (aExt === bExt) return b.size - a.size;
+          if (aExt === 'js' || aExt === 'css') return -1;
+          return 1;
         });
-        
-        if (data.assets.length > 5) {
-          table.push([{colSpan: 2, content: `\x1b[90m... and ${data.assets.length - 5} more\x1b[0m`, hAlign: 'center'}]);
+
+        // 适当截断
+        const maxAssets = isDev ? 10 : 20; 
+        const displayed = sortedAssets.slice(0, maxAssets);
+
+        // 统一左对齐
+        const maxSizeStrLen = Math.max(...displayed.map(a => formatSize(a.size).length));
+
+        displayed.forEach(asset => {
+          const ext = asset.name.split('.').pop();
+          let nameColor = c.cyan; // 默认青色
+          if (ext === 'css') nameColor = c.magenta; // CSS 紫色
+          else if (['png', 'jpg', 'jpeg', 'svg', 'gif'].includes(ext)) nameColor = c.green;
+          else if (ext === 'html') nameColor = c.blue;
+
+          // 大小颜色：大于 500kb 黄色警告，否则普通灰色
+          let sizeColor = c.dim;
+          if (asset.size > 500 * 1024) sizeColor = c.yellow;
+
+          const sizeStr = formatSize(asset.size).padStart(maxSizeStrLen, ' ');
+          
+          // 输出: dist/xxxx.js       14.23 kB
+          console.log(`  ${dim('dist/')}${paint(nameColor, asset.name.padEnd(45, ' '))} ${paint(sizeColor, sizeStr)}`);
+        });
+
+        if (sortedAssets.length > maxAssets) {
+          console.log(`  ${dim(`... and ${sortedAssets.length - maxAssets} more assets`)}`);
         }
       }
-
-      console.log(table.toString());
-      console.log(''); // Extra line for spacing
       
-      if (stats.hasErrors()) {
-        console.log('\x1b[31m\x1b[1m✗ Errors:\x1b[0m');
-        data.errors.forEach((err) => console.error(`  ${err.message}`));
+      console.log(); // 留白
+      
+      // 3. 将成功状态移到列表底部
+      console.log(`  ${bold(paint(c.green, '✓ built in'))} ${buildTime}s`);
+      if (stats.hasWarnings()) {
+        console.log(`  ${paint(c.yellow, `${json.warnings.length} warnings (use stats.warnings to inspect)`)}`);
       }
+
+      console.log(); // 空一行结尾
     });
   }
 }

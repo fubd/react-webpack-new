@@ -1,13 +1,11 @@
-import React from 'react';
-import {ConfigProvider} from 'antd';
+import React, {Suspense} from 'react';
+import {ConfigProvider, Spin} from 'antd';
 import {BrowserRouter, Routes, Route} from 'react-router-dom';
 import 'antd/dist/reset.css';
-import './styles/global.less'; // Import global styles
-import antdTheme from './theme/antdTheme'; // Import custom theme
+import './styles/global.less';
+import antdTheme from './theme/antdTheme';
 import MainLayout from './layouts/MainLayout';
-import Home from './pages/home';
-import About from './pages/about';
-import News from './pages/news';
+import routes from './routes';
 
 const App: React.FC = () => {
   return (
@@ -15,9 +13,21 @@ const App: React.FC = () => {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<MainLayout />}>
-            <Route index element={<Home />} />
-            <Route path="about" element={<About />} />
-            <Route path="news" element={<News />} />
+            {routes.map((route) => {
+              const Page = route.element;
+              return (
+                <Route
+                  key={route.path}
+                  index={route.path === '/'}
+                  path={route.path === '/' ? undefined : route.path.slice(1)}
+                  element={
+                    <Suspense fallback={<Spin style={{display: 'flex', justifyContent: 'center', padding: 48}} />}>
+                      <Page />
+                    </Suspense>
+                  }
+                />
+              );
+            })}
           </Route>
         </Routes>
       </BrowserRouter>
