@@ -21,6 +21,8 @@ module.exports = {
     // 文件名包含内容哈希，用于浏览器缓存控制
     // 内容变了 hash 才会变，用户才会重新下载，否则使用缓存
     filename: '[name].[contenthash].js',
+    // 异步 chunk 也使用内容哈希，提升长期缓存命中
+    chunkFilename: '[name].[contenthash].js',
     // 每次构建前清理 dist 目录，防止旧文件堆积
     clean: true,
     // 确保资源路径始终从根路径开始，避免子路由下静态资源 404
@@ -37,9 +39,14 @@ module.exports = {
       // 处理 JS/TS/JSX/TSX 文件
       {
         test: /\.(js|jsx|ts|tsx)$/,
+        include: path.resolve(__dirname, 'src'),
         exclude: /node_modules/, // 排除 node_modules，避免重复编译库文件
         use: {
           loader: 'babel-loader',
+          options: {
+            cacheDirectory: true,
+            cacheCompression: false,
+          },
         },
       },
       // 处理样式文件 (CSS/Less)
@@ -106,6 +113,8 @@ module.exports = {
 
   // 优化配置
   optimization: {
+    // 将运行时代码单独拆分，提升长期缓存命中
+    runtimeChunk: 'single',
     // 代码分割配置
     splitChunks: {
       chunks: 'all', // 对同步和异步代码都进行分割
