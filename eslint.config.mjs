@@ -71,7 +71,28 @@ export default [
       // 禁止多余的连续空行（最多1行，文件末尾/开头0行）
       '@stylistic/no-multiple-empty-lines': ['error', { max: 1, maxEOF: 0, maxBOF: 0 }],
 
-      // 对象大括号内的空格：关闭检查，以允许灵活的写法
+      // 数组/解构方括号内不留空格
+      '@stylistic/array-bracket-spacing': ['error', 'never'],
+
+      // 逗号后保留一个空格
+      '@stylistic/comma-spacing': ['error', { before: false, after: true }],
+
+      // 禁止多余空格（例如连续空格对齐）
+      '@stylistic/no-multi-spaces': ['error'],
+
+      // 括号内不留空格（例如 fn(a)）
+      '@stylistic/space-in-parens': ['error', 'never'],
+
+      // import/export 出现换行时，要求完整多行风格（避免半多行）
+      '@stylistic/object-curly-newline': ['error', {
+        ImportDeclaration: { multiline: true, consistent: true },
+        ExportDeclaration: { multiline: true, consistent: true },
+      }],
+
+      // 禁止行尾多余空格
+      '@stylistic/no-trailing-spaces': ['error'],
+
+      // 对象大括号内不留空格
       '@stylistic/object-curly-spacing': ['error', 'never'],
 
       // 代码块内部（如箭头函数）不使用空格

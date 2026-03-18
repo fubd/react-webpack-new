@@ -14,7 +14,7 @@ const Home: React.FC = () => {
       <div className="hero">
         <h1 className="heroTitle">Build Faster with Dot</h1>
         <p className="heroSubtitle">
-          The ultimate SaaS boilerplates for React developers. 
+          The ultimate SaaS boilerplates for React developers.
           Stop wasting time on setup and start shipping features today.
         </p>
         <Space size="middle">
@@ -36,7 +36,7 @@ const Home: React.FC = () => {
             </Paragraph>
           </Space>
         </div>
-        
+
         <div className="card">
           <Space orientation="vertical" size="small">
             <SafetyCertificateOutlined style={{fontSize: '32px', color: token.colorSuccess}} />
@@ -58,9 +58,9 @@ const Home: React.FC = () => {
         </div>
       </div>
 
-      <Modal 
-        title="Welcome to Dot" 
-        open={open} 
+      <Modal
+        title="Welcome to Dot"
+        open={open}
         onCancel={() => setOpen(false)}
         footer={[
           <Button key="back" onClick={() => setOpen(false)}>

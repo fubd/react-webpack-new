@@ -3,7 +3,7 @@ import {ThemeConfig} from 'antd';
 const antdTheme: ThemeConfig = {
   cssVar: {
     prefix: 'dot', // This generates --dot-color-primary
-    key: 'dot',    // Unique key for this theme scope
+    key: 'dot', // Unique key for this theme scope
   },
   hashed: false, // Cleaner DOM, optional but good for debug
   token: {
@@ -12,17 +12,17 @@ const antdTheme: ThemeConfig = {
     colorLink: '#0ea5e9',
     colorSuccess: '#10b981', // Emerald 500
     colorWarning: '#f59e0b', // Amber 500
-    colorError: '#ef4444',   // Red 500
-    colorInfo: '#3b82f6',    // Blue 500
-    
+    colorError: '#ef4444', // Red 500
+    colorInfo: '#3b82f6', // Blue 500
+
     // Typography
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
     fontSize: 14,
-    
+
     // Layout
     borderRadius: 8,
     wireframe: false,
-    
+
     // Backgrounds
     colorBgLayout: '#f8fafc',
     colorBgBase: '#ffffff',
@@ -47,7 +47,7 @@ const antdTheme: ThemeConfig = {
     },
     Layout: {
       headerBg: '#ffffff',
-      bodyBg: '#f8fafc', 
+      bodyBg: '#f8fafc',
     },
   },
 };

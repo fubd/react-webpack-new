@@ -8,6 +8,7 @@
     "build": "cross-env NODE_ENV=production webpack --mode production",
     "type-check": "tsc --noEmit",
     "lint": "eslint src",
+    "format": "eslint src --fix",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
