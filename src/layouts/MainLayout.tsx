@@ -1,33 +1,67 @@
-import {Menu, theme} from 'antd';
-import {Outlet, useLocation, useNavigate} from 'react-router-dom';
+import {Suspense} from 'react';
+import {Link, NavLink, Outlet} from 'react-router-dom';
 import './MainLayout.less';
-import routes from '@/routes';
-
-const MENU_ITEMS = routes.map((r) => ({key: r.path, label: r.label}));
+import pageRoutes from '@/routes/config';
+import brandMarkImage from '@/assets/brand-mark.png';
 
 const MainLayout = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const {token} = theme.useToken();
-
   return (
-    <div style={{minHeight: '100vh', background: token.colorBgLayout, display: 'flex', flexDirection: 'column'}}>
+    <div className="layoutRoot">
       <header className="header">
-        <div className="logo" onClick={() => navigate('/')}>
-          Dot SaaS
+        <div className="headerInner">
+          <Link className="brand" to="/">
+            <span className="brandMark" aria-hidden="true">
+              <img className="brandMarkImage" src={brandMarkImage} alt="" />
+            </span>
+            <span className="brandText">
+              <span className="brandEyebrow">Product Starter</span>
+              <span className="brandName">Dot SaaS</span>
+            </span>
+          </Link>
+          <nav className="nav" aria-label="Primary">
+            <div className="navRail">
+              {pageRoutes
+                .filter((route) => route.handle?.nav)
+                .map((route) => {
+                  const to = route.index ? '/' : `/${route.path ?? ''}`;
+
+                  return (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      end={route.index === true}
+                      className={({isActive}) => `navLink${isActive ? ' navLinkActive' : ''}`}
+                    >
+                      {route.handle?.title ?? 'Untitled'}
+                    </NavLink>
+                  );
+                })}
+            </div>
+          </nav>
+          <div className="headerMeta">
+            <span className="headerMetaDot" aria-hidden="true" />
+            <span>React 19 starter</span>
+          </div>
         </div>
-        <Menu
-          theme="light"
-          mode="horizontal"
-          selectedKeys={[location.pathname]}
-          items={MENU_ITEMS}
-          onClick={(e) => navigate(e.key)}
-          className="menu"
-        />
       </header>
       <main className="content">
         <div className="contentInner">
-          <Outlet />
+          <Suspense
+            fallback={(
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  padding: 48,
+                  color: 'var(--dot-color-text-secondary)',
+                }}
+              >
+                Loading...
+              </div>
+            )}
+          >
+            <Outlet />
+          </Suspense>
         </div>
       </main>
       <footer className="footer">

@@ -1,27 +1,13 @@
-import {lazy, type LazyExoticComponent, type ComponentType} from 'react';
+import type {RouteObject} from 'react-router-dom';
+import MainLayout from '@/layouts/MainLayout';
+import pageRoutes from './config';
 
-export interface RouteConfig {
-  path: string;
-  label: string;
-  element: LazyExoticComponent<ComponentType>;
-}
-
-const routes: RouteConfig[] = [
+const routes = [
   {
     path: '/',
-    label: 'Home',
-    element: lazy(() => import('@/pages/home')),
+    element: <MainLayout />,
+    children: pageRoutes,
   },
-  {
-    path: '/about',
-    label: 'About',
-    element: lazy(() => import('@/pages/about')),
-  },
-  {
-    path: '/news',
-    label: 'News',
-    element: lazy(() => import('@/pages/news')),
-  },
-];
+] satisfies RouteObject[];
 
 export default routes;

@@ -9,6 +9,9 @@ const ESLintPlugin = require('eslint-webpack-plugin');
 // 判断当前是否为开发模式
 // process.env.NODE_ENV 在 package.json scripts 中设置
 const isDev = process.env.NODE_ENV === 'development';
+const reactVendorPattern = /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/;
+const routerVendorPattern = /[\\/]node_modules[\\/](react-router|react-router-dom)[\\/]/;
+const uiVendorPattern = /[\\/]node_modules[\\/](antd|@ant-design|@rc-component|rc-[^\\/]+)[\\/]/;
 
 module.exports = {
   // 入口文件：应用程序的起点
@@ -32,6 +35,12 @@ module.exports = {
   // 文件系统缓存：大幅提升二次构建速度（首次构建后生效）
   cache: {
     type: 'filesystem',
+    buildDependencies: {
+      config: [
+        __filename,
+        path.resolve(__dirname, 'babel.config.js'),
+      ],
+    },
   },
 
   module: {
@@ -67,7 +76,7 @@ module.exports = {
       },
       // 处理图片、字体等资源文件
       {
-        test: /\.(png|jpg|jpeg|gif|svg)$/i,
+        test: /\.(png|jpg|jpeg|gif|svg|ico)$/i,
         // Webpack 5 内置资源处理模块
         // 小于 8kb 自动转 base64 内联，减少 HTTP 请求；大于 8kb 输出独立文件
         type: 'asset',
@@ -113,18 +122,44 @@ module.exports = {
 
   // 优化配置
   optimization: {
+    moduleIds: 'deterministic',
+    chunkIds: 'deterministic',
     // 将运行时代码单独拆分，提升长期缓存命中
     runtimeChunk: 'single',
     // 代码分割配置
     splitChunks: {
       chunks: 'all', // 对同步和异步代码都进行分割
+      maxInitialRequests: 20,
+      maxAsyncRequests: 20,
       cacheGroups: {
-        // 将第三方库 (node_modules) 提取到单独的 vendors chunk
-        // 优点：第三方库不常变动，可以长期缓存
-        vendors: {
+        // React 运行时属于应用壳层，单独抽离后缓存最稳定
+        reactVendor: {
+          test: reactVendorPattern,
+          name: 'react-vendor',
+          priority: 40,
+          enforce: true,
+        },
+        // 路由也是应用壳层依赖，保持独立能减少非路由改动的缓存失效
+        routerVendor: {
+          test: routerVendorPattern,
+          name: 'router-vendor',
+          priority: 30,
+          enforce: true,
+        },
+        // 只把首屏壳层里真正会同步加载的 UI 依赖提到 initial chunk
+        uiShell: {
+          test: uiVendorPattern,
+          name: 'ui-shell',
+          chunks: 'initial',
+          priority: 20,
+          enforce: true,
+        },
+        // 页面级异步依赖交给 webpack 按需拆分，避免懒加载页面的库被提前塞进入口
+        defaultVendors: {
           test: /[\\/]node_modules[\\/]/,
-          name: 'vendors',
-          priority: -10, // 优先级
+          chunks: 'async',
+          priority: -10,
+          reuseExistingChunk: true,
         },
         // 提取被多次引用的公共模块
         default: {
@@ -167,6 +202,15 @@ module.exports = {
   // eval-cheap-module-source-map：开发环境首选，重新构建速度比 source-map 快很多
   // 生产环境通常不开启或使用 'hidden-source-map' 防止源码泄露
   devtool: isDev ? 'eval-cheap-module-source-map' : false,
+
+  // 显式定义性能预算，避免沿用 webpack 偏保守的默认阈值。
+  // 目前首屏壳层包含 React、Router 和基础 Ant Design 能力，生产入口约 478 KiB，
+  // 因此将入口预算提升到 512 KiB，同时保留后续包体继续膨胀时的告警能力。
+  performance: isDev ? false : {
+    hints: 'warning',
+    maxEntrypointSize: 512 * 1024,
+    maxAssetSize: 256 * 1024,
+  },
 
   // 控制台输出日志控制
   stats: 'errors-only',

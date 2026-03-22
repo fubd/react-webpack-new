@@ -11,8 +11,6 @@ function News() {
     <Card title="News">
       what the hell
       <br />
-      look into the sky.
-      <br />
       <Button type="primary" onClick={() => setCount(count + 1)}>click me, {count}</Button>
     </Card>
   </div>;
