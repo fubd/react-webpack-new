@@ -1,0 +1,140 @@
+name: parrot
+
+services:
+  frontend:
+    image: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-frontend:${VERSION}
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      args:
+        BASE_NODE_IMAGE: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-node:22-alpine
+        BASE_NGINX_IMAGE: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-nginx:1.27-alpine
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${FRONTEND_PORT:-26030}:26030"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:26030/ || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    mem_limit: 128m
+    networks:
+      - parrot
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    image: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-backend:${VERSION}
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      args:
+        BASE_NODE_IMAGE: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-node:22-alpine
+    restart: unless-stopped
+    init: true
+    environment:
+      APP_NAME: ${APP_NAME}
+      VERSION: ${VERSION}
+      NODE_ENV: production
+      PORT: 26031
+      FRONTEND_PORT: ${FRONTEND_PORT}
+      BACKEND_PORT: ${BACKEND_PORT}
+      MYSQL_PORT: ${MYSQL_PORT}
+      NGINX_PORT: ${NGINX_PORT}
+      DATABASE_HOST: mysql
+      DATABASE_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      NODE_OPTIONS: --max-old-space-size=256
+    ports:
+      - "${BACKEND_PORT:-26031}:26031"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:26031/healthz >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 256m
+    networks:
+      - parrot
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mysql:
+    image: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-mysql:8.4.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=50
+      - --innodb_buffer_pool_size=128M
+      - --performance_schema=OFF
+    ports:
+      - "${MYSQL_PORT:-26032}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    mem_limit: 512m
+    networks:
+      - parrot
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-nginx:${VERSION}
+    build:
+      context: .
+      dockerfile: infra/nginx/Dockerfile
+      args:
+        BASE_NGINX_IMAGE: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-nginx:1.27-alpine
+    restart: unless-stopped
+    init: true
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    ports:
+      - "${NGINX_PORT:-26033}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    mem_limit: 64m
+    networks:
+      - parrot
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mysql-data:
+
+networks:
+  parrot:

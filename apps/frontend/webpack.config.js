@@ -1,38 +1,30 @@
 const path = require('path');
+const dotenv = require('dotenv');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
-const ConsoleLogOnBuildWebpackPlugin = require('./plugins/ConsoleLogOnBuildWebpackPlugin');
 const TerserPlugin = require('terser-webpack-plugin');
 const ESLintPlugin = require('eslint-webpack-plugin');
+const ConsoleLogOnBuildWebpackPlugin = require('./plugins/ConsoleLogOnBuildWebpackPlugin');
 
-// 判断当前是否为开发模式
-// process.env.NODE_ENV 在 package.json scripts 中设置
+dotenv.config({
+  path: path.resolve(__dirname, '../../.env'),
+});
+
 const isDev = process.env.NODE_ENV === 'development';
 const reactVendorPattern = /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/;
 const routerVendorPattern = /[\\/]node_modules[\\/](react-router|react-router-dom)[\\/]/;
 const uiVendorPattern = /[\\/]node_modules[\\/](antd|@ant-design|@rc-component|rc-[^\\/]+)[\\/]/;
 
 module.exports = {
-  // 入口文件：应用程序的起点
-  entry: './src/index.tsx',
-
-  // 输出配置：打包后的文件位置和命名规则
+  entry: path.resolve(__dirname, './src/index.tsx'),
   output: {
-    // 必须是绝对路径
     path: path.resolve(__dirname, 'dist'),
-    // 文件名包含内容哈希，用于浏览器缓存控制
-    // 内容变了 hash 才会变，用户才会重新下载，否则使用缓存
     filename: '[name].[contenthash].js',
-    // 异步 chunk 也使用内容哈希，提升长期缓存命中
     chunkFilename: '[name].[contenthash].js',
-    // 每次构建前清理 dist 目录，防止旧文件堆积
     clean: true,
-    // 确保资源路径始终从根路径开始，避免子路由下静态资源 404
     publicPath: '/',
   },
-
-  // 文件系统缓存：大幅提升二次构建速度（首次构建后生效）
   cache: {
     type: 'filesystem',
     buildDependencies: {
@@ -42,14 +34,12 @@ module.exports = {
       ],
     },
   },
-
   module: {
     rules: [
-      // 处理 JS/TS/JSX/TSX 文件
       {
         test: /\.(js|jsx|ts|tsx)$/,
         include: path.resolve(__dirname, 'src'),
-        exclude: /node_modules/, // 排除 node_modules，避免重复编译库文件
+        exclude: /node_modules/,
         use: {
           loader: 'babel-loader',
           options: {
@@ -58,95 +48,71 @@ module.exports = {
           },
         },
       },
-      // 处理样式文件 (CSS/Less)
       {
         test: /\.(css|less)$/,
         use: [
-          // 开发环境使用 style-loader (写入 style 标签，支持 HMR)
-          // 生产环境使用 MiniCssExtractPlugin (提取为独立 CSS 文件，利于缓存)
           isDev ? 'style-loader' : MiniCssExtractPlugin.loader,
           {
             loader: 'css-loader',
             options: {
-              sourceMap: isDev, // 开启 Source Map 方便调试
+              sourceMap: isDev,
             },
           },
-          'less-loader', // 编译 Less 为 CSS
+          'less-loader',
         ],
       },
-      // 处理图片、字体等资源文件
       {
         test: /\.(png|jpg|jpeg|gif|svg|ico)$/i,
-        // Webpack 5 内置资源处理模块
-        // 小于 8kb 自动转 base64 内联，减少 HTTP 请求；大于 8kb 输出独立文件
         type: 'asset',
         parser: {
           dataUrlCondition: {
-            maxSize: 8 * 1024, // 8kb
+            maxSize: 8 * 1024,
           },
         },
       },
     ],
   },
-
   resolve: {
-    // 引入模块时可以省略的后缀名
     extensions: ['.js', '.jsx', '.ts', '.tsx'],
-    // 路径别名配置
     alias: {
       '@': path.resolve(__dirname, 'src'),
     },
   },
-
   plugins: [
-    // 自动生成 HTML 文件并注入打包后的 JS/CSS
     new HtmlWebpackPlugin({
-      template: './public/index.html',
+      template: path.resolve(__dirname, './public/index.html'),
     }),
-
-    // 生产环境提取 CSS 为独立文件
     !isDev && new MiniCssExtractPlugin({
       filename: 'css/[name].[contenthash].css',
     }),
-
-    // ESLint 实时检查：构建时在终端显示 lint 错误
-    // 开发环境仅警告不中断，生产环境让 lint 错误阻断构建
     new ESLintPlugin({
       extensions: ['js', 'jsx', 'ts', 'tsx'],
       context: path.resolve(__dirname, 'src'),
       failOnError: !isDev,
     }),
-
     new ConsoleLogOnBuildWebpackPlugin(),
-  ].filter(Boolean), // 过滤掉 false 的项 (开发环境不加入 MiniCssExtractPlugin)
-
-  // 优化配置
+  ].filter(Boolean),
   optimization: {
     moduleIds: 'deterministic',
     chunkIds: 'deterministic',
-    // 将运行时代码单独拆分，提升长期缓存命中
     runtimeChunk: 'single',
-    // 代码分割配置
     splitChunks: {
-      chunks: 'all', // 对同步和异步代码都进行分割
+      chunks: 'all',
       maxInitialRequests: 20,
       maxAsyncRequests: 20,
       cacheGroups: {
-        // React 运行时属于应用壳层，单独抽离后缓存最稳定
         reactVendor: {
           test: reactVendorPattern,
           name: 'react-vendor',
           priority: 40,
           enforce: true,
         },
-        // 路由也是应用壳层依赖，保持独立能减少非路由改动的缓存失效
         routerVendor: {
           test: routerVendorPattern,
           name: 'router-vendor',
           priority: 30,
           enforce: true,
         },
-        // 只把首屏壳层里真正会同步加载的 UI 依赖提到 initial chunk
         uiShell: {
           test: uiVendorPattern,
           name: 'ui-shell',
@@ -154,14 +120,12 @@ module.exports = {
           priority: 20,
           enforce: true,
         },
-        // 页面级异步依赖交给 webpack 按需拆分，避免懒加载页面的库被提前塞进入口
         defaultVendors: {
           test: /[\\/]node_modules[\\/]/,
           chunks: 'async',
           priority: -10,
           reuseExistingChunk: true,
         },
-        // 提取被多次引用的公共模块
         default: {
           minChunks: 2,
           priority: -20,
@@ -169,50 +133,40 @@ module.exports = {
         },
       },
     },
-
     ...(isDev ? {} : {
       minimize: true,
       minimizer: [
         new TerserPlugin({extractComments: false}),
-        // CSS 压缩（生产环境，配合 MiniCssExtractPlugin 使用）
         new CssMinimizerPlugin(),
       ],
     }),
   },
-
-  // 开发服务器配置
   devServer: {
     static: {
       directory: path.join(__dirname, 'dist'),
     },
-    compress: true, // 开启 gzip 压缩
-    port: 3000,
-    hot: true, // 热更新
-    open: true, // 启动后自动打开浏览器
-    // 解决 BrowserRouter 刷新 404：将所有 404 重定向回 index.html
+    compress: true,
+    port: Number(process.env.FRONTEND_PORT ?? 26030),
+    hot: true,
+    open: false,
     historyApiFallback: true,
+    proxy: {
+      '/api': {
+        target: `http://127.0.0.1:${process.env.BACKEND_PORT ?? 26031}`,
+        changeOrigin: true,
+      },
+    },
     devMiddleware: {
-      // 将开发环境下所有文件包括sourceMap写入磁盘而不是内存
       writeToDisk: false,
       publicPath: '/',
     },
   },
-
-  // Source Map 配置
-  // eval-cheap-module-source-map：开发环境首选，重新构建速度比 source-map 快很多
-  // 生产环境通常不开启或使用 'hidden-source-map' 防止源码泄露
   devtool: isDev ? 'eval-cheap-module-source-map' : false,
-
-  // 显式定义性能预算，避免沿用 webpack 偏保守的默认阈值。
-  // 目前首屏壳层包含 React、Router 和基础 Ant Design 能力，生产入口约 478 KiB，
-  // 因此将入口预算提升到 512 KiB，同时保留后续包体继续膨胀时的告警能力。
   performance: isDev ? false : {
     hints: 'warning',
     maxEntrypointSize: 512 * 1024,
     maxAssetSize: 256 * 1024,
   },
-
-  // 控制台输出日志控制
   stats: 'errors-only',
   infrastructureLogging: {
     level: 'error',

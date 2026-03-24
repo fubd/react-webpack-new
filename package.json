@@ -1,58 +1,27 @@
 {
-  "name": "lion",
+  "name": "parrot-platform",
+  "private": true,
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
-    "start": "cross-env NODE_ENV=development webpack serve --mode development",
-    "build": "cross-env NODE_ENV=production webpack --mode production",
-    "type-check": "tsc --noEmit",
-    "lint": "eslint src",
-    "format": "eslint src --fix",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@ant-design/icons": "^6.1.0",
-    "antd": "^6.3.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-router-dom": "^7.10.1"
+    "build": "npm run build --workspace @parrot/frontend && npm run build --workspace @parrot/backend",
+    "type-check": "npm run type-check --workspace @parrot/frontend && npm run type-check --workspace @parrot/backend",
+    "lint": "npm run lint --workspace @parrot/frontend && npm run lint --workspace @parrot/backend",
+    "dev:frontend": "npm run dev --workspace @parrot/frontend",
+    "dev:backend": "npm run dev --workspace @parrot/backend",
+    "migrate": "npm run migrate --workspace @parrot/backend"
   },
   "devDependencies": {
-    "@babel/core": "^7.28.5",
-    "@babel/preset-env": "^7.28.5",
-    "@babel/preset-react": "^7.28.5",
-    "@babel/preset-typescript": "^7.28.5",
     "@stylistic/eslint-plugin": "^5.6.1",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "babel-loader": "^10.0.0",
-    "cli-table3": "^0.6.5",
-    "cross-env": "^10.1.0",
-    "css-loader": "^7.1.2",
-    "css-minimizer-webpack-plugin": "^8.0.0",
     "eslint": "^9.39.2",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-webpack-plugin": "^5.0.3",
     "globals": "^16.5.0",
-    "html-webpack-plugin": "^5.6.5",
-    "less": "^4.4.2",
-    "less-loader": "^12.3.0",
-    "mini-css-extract-plugin": "^2.9.4",
-    "style-loader": "^4.0.0",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.49.0",
-    "webpack": "^5.105.4",
-    "webpack-cli": "^7.0.2",
-    "webpack-dev-server": "^5.2.3"
+    "typescript-eslint": "^8.49.0"
   },
-  "browserslist": [
-    "> 0.5%",
-    "not dead",
-    "not op_mini all"
-  ]
+  "engines": {
+    "node": ">=22.0.0"
+  }
 }

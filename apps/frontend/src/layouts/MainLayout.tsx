@@ -40,7 +40,7 @@ const MainLayout = () => {
           </nav>
           <div className="headerMeta">
             <span className="headerMetaDot" aria-hidden="true" />
-            <span>React 19 starter</span>
+            <span>React + Hono stack</span>
           </div>
         </div>
       </header>
@@ -65,7 +65,7 @@ const MainLayout = () => {
         </div>
       </main>
       <footer className="footer">
-        Dot SaaS ©{new Date().getFullYear()} Designed by Antigravity
+        Dot SaaS ©{new Date().getFullYear()} Frontend, API, MySQL, nginx, and Docker in one branch.
       </footer>
     </div>
   );

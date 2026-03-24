@@ -1,0 +1,149 @@
+import React from 'react';
+import {Button, Space, Tag, Typography} from 'antd';
+import {Link} from 'react-router-dom';
+import './index.less';
+
+const {Paragraph, Title} = Typography;
+
+type SummaryResponse = {
+  appName: string;
+  version: string;
+  environment: string;
+  publishedNewsCount: number;
+  latestPublishedAt: string | null;
+  services: string[];
+};
+
+const Home: React.FC = () => {
+  const [summary, setSummary] = React.useState<SummaryResponse | null>(null);
+  const [errorMessage, setErrorMessage] = React.useState('');
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadSummary = async () => {
+      try {
+        const response = await fetch('/api/v1/system/summary');
+
+        if (!response.ok) {
+          throw new Error('Failed to load the system summary.');
+        }
+
+        const nextSummary = await response.json() as SummaryResponse;
+
+        if (!cancelled) {
+          setSummary(nextSummary);
+          setErrorMessage('');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setErrorMessage(error instanceof Error ? error.message : 'Unknown request error');
+        }
+      }
+    };
+
+    void loadSummary();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="homeWrapper">
+      <section className="hero">
+        <div className="heroCopy">
+          <Tag color="cyan" bordered={false}>Full-stack refactor branch</Tag>
+          <h1 className="heroTitle">Ship Dot with a frontend, backend, database, and gateway that already fit together.</h1>
+          <p className="heroSubtitle">
+            React stays on the surface, Hono serves the API, MySQL stores the data,
+            and nginx routes traffic without taking on SSL responsibility inside the container boundary.
+          </p>
+          <Space size="middle" wrap>
+            <Button type="primary" size="large">
+              <Link to="/news">Browse API-backed news</Link>
+            </Button>
+            <Button size="large" href="/api/health" target="_blank" rel="noreferrer">
+              Open backend health
+            </Button>
+          </Space>
+        </div>
+
+        <div className="systemPanel">
+          <div className="systemPanelHeader">
+            <span className="systemPanelEyebrow">System summary</span>
+            <span className={`systemPill${summary ? ' systemPillLive' : ''}`}>
+              {summary ? 'API online' : 'Waiting for API'}
+            </span>
+          </div>
+
+          <div className="systemStats">
+            <article className="statCard">
+              <span className="statLabel">App name</span>
+              <strong className="statValue">{summary?.appName ?? 'Dot SaaS'}</strong>
+            </article>
+            <article className="statCard">
+              <span className="statLabel">Published news</span>
+              <strong className="statValue">{summary?.publishedNewsCount ?? 0}</strong>
+            </article>
+            <article className="statCard">
+              <span className="statLabel">Last content sync</span>
+              <strong className="statValue">{summary?.latestPublishedAt ?? 'Pending'}</strong>
+            </article>
+            <article className="statCard">
+              <span className="statLabel">Runtime</span>
+              <strong className="statValue">{summary?.environment ?? 'development'}</strong>
+            </article>
+          </div>
+
+          <div className="serviceList">
+            {(summary?.services ?? [
+              'React 19 + Webpack',
+              'Hono + TypeScript',
+              'Drizzle raw SQL + MySQL',
+              'Nginx + Docker Compose',
+            ]).map((service) => (
+              <span key={service} className="serviceTag">{service}</span>
+            ))}
+          </div>
+
+          {errorMessage ? (
+            <p className="statusMessage statusMessageError">{errorMessage}</p>
+          ) : (
+            <p className="statusMessage">
+              The page reads real data from the new backend, so you can immediately verify the full stack is connected.
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section className="grid">
+        <article className="card">
+          <Title level={4}>Raw SQL stays visible</Title>
+          <Paragraph>
+            The backend keeps database behavior close to the code you read every day,
+            with Drizzle used as the connection and SQL execution layer instead of hiding queries behind heavy repositories.
+          </Paragraph>
+        </article>
+
+        <article className="card">
+          <Title level={4}>Docker is production-oriented</Title>
+          <Paragraph>
+            Frontend, backend, MySQL, and gateway nginx each have a clear role,
+            while compose keeps ports predictable and images ready for Aliyun ACR publishing.
+          </Paragraph>
+        </article>
+
+        <article className="card">
+          <Title level={4}>Operations live in Makefile</Title>
+          <Paragraph>
+            Build, type-check, migrate, run, push, and remote deploy commands are centralized
+            so the refactor is easier to operate than a stack of ad-hoc shell history.
+          </Paragraph>
+        </article>
+      </section>
+    </div>
+  );
+};
+
+export default Home;
