@@ -1,9 +1,9 @@
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
-import { db, closeDatabase, waitForDatabase } from './db/client.js';
-import { migrateDatabase } from './db/migrate.js';
-import { env } from './env.js';
+import {Hono} from 'hono';
+import {cors} from 'hono/cors';
+import {logger} from 'hono/logger';
+import {db, closeDatabase, waitForDatabase} from './db/client.js';
+import {migrateDatabase} from './db/migrate.js';
+import {env} from './env.js';
 
 type SummaryRow = {
   publishedNewsCount: number;
@@ -30,11 +30,11 @@ app.onError((err, context) => {
       status: 'error',
       message: err instanceof Error ? err.message : 'Internal Server Error',
     },
-    500
+    500,
   );
 });
 
-app.use('/api/*', cors({ origin: '*' }));
+app.use('/api/*', cors({origin: '*'}));
 
 app.get('/healthz', async (context) => {
   await db`SELECT 1 AS ok`;
@@ -135,5 +135,5 @@ const server = Bun.serve({
 
 console.log(`[backend] listening on http://localhost:${server.port}`);
 
-process.on('SIGINT', () => { void shutdown('SIGINT'); });
-process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+process.on('SIGINT', () => {void shutdown('SIGINT');});
+process.on('SIGTERM', () => {void shutdown('SIGTERM');});

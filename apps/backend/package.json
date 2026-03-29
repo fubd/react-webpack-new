@@ -8,6 +8,7 @@
     "start": "bun src/index.ts",
     "type-check": "tsc --project tsconfig.json --noEmit",
     "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "migrate": "bun src/db/migrate.ts"
   },
   "dependencies": {

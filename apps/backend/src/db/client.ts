@@ -1,4 +1,4 @@
-import { env } from '../env.js';
+import {env} from '../env.js';
 
 const url = `mysql://${encodeURIComponent(env.databaseUser)}:${encodeURIComponent(env.databasePassword)}@${env.databaseHost}:${env.databasePort}/${env.databaseName}`;
 

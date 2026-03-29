@@ -12,6 +12,10 @@
 - **后端 (Backend)**: `Bun` + `Hono`。完全摒弃 Node.js。借助 Bun 原生内置的 Web Server、原生支持的 `.env` 以及 C++ 编写的极致性能 原生 SQL 驱动 (`Bun.sql`)，无须任何 ORM（如 drizzle/prisma）带来的性能与心智开销。
 - **持久层 (Database)**: `MySQL 8.4` 提供硬核存储。
 - **网关层 (Proxy)**: `Nginx`，承担静态资源分发（开启了全局 Gzip 压缩）和 API 反向代理。
+- **目录结构与工作空间 (Workspace)**: 基于 `npm workspace` 构建统一的单体代码库 (Monorepo)。核心业务逻辑严密区分并在各自的目录中自治：
+  - `apps/frontend/`: 前端独立应用目录。
+  - `apps/backend/`: 后端微服务目录。
+  - 此设计下，前后端共享根目录顶级的 `package.json` 统一管理依赖图谱，并在未来天然支持跨端接口类型 (Types) 直接 `import` 导入，消除端与端之间的壁垒。
 - **编排层 (Orchestration)**: `Docker Compose` 与 `Makefile`。所有的运维、打包、部署命令甚至回滚，统一封装进 Makefile，不需要引入重型 CI/CD 也能做到极优雅的上云操作。
 
 ---
@@ -109,3 +113,18 @@ make remote-db-restore BACKUP_FILE=backups/mysql/你的快照文件名.sql.gz
 1. **简单之美**：项目摒弃了重度框架组合（如 Next.js/Nest.js）。利用原生的 Web 标准解决复杂性。
 2. **错误前置**：Hono 提供了一个兜底的全局 `app.onError`。除非明确的业务逻辑错报，接口级别里应尽量免去冗长的 `try/catch` 泥潭，全部 throw 出去由网关统一处理为 500 标准 JSON 结构返回。
 3. **零运行耗损**：任何可以通过架构化解决的问题都不占用代码 CPU（例如把 `gzip` 丢给 Nginx，把基础依赖甩给外脑 CDN，把慢 SQL 转给引擎优化器）。
+
+---
+
+## 秘钥与凭证管理 (Secret Management)
+
+整个项目的所有敏感配置（数据库访问密码等、生产服务器 SSH 到 Aliyun Registry 的密钥对等）统一定义在隐藏的 `.env` 中。
+
+⚠️ **绝对禁止将任何 `.env` 文件提交到 Git 代码库记录中！** 
+这些文件已经在 `.gitignore` 里被屏蔽。将其推到公开或即便私有的代码库，都会导致高危的云安全事件。
+
+**那么，不能传代码库，万一本地电脑坏了丢失了怎么办？**
+为了防范密码和配置丢失风险，你必须借用**第三方安全外脑**来托管你的环境文件内容：
+1. **密码管理器 (首推)**：将 `.env` 里的文本全选复制，创建一个属于你个人的 `1Password` 或 `Bitwarden` 的机密笔记 (Secure Note)，同步在你的云端金库。这是最轻量、最防弹且永不丢失的做法。
+2. **云服务管理控制台**：如果团队规模稍大，应当把它们托付给专业的 `HashiCorp Vault` 或阿里云/AWS 的 `Secrets Manager` (凭据服务) 中。
+3. **CI/CD 保管**：如果是全自动化流水线开发，应当把各组变量拆分成一条条的 Key-Value，存放在代码托管平台的“GitHub Actions / GitLab Secret Settings”机密配置墙后面。

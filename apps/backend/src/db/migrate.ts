@@ -1,15 +1,15 @@
-import { readdir } from 'node:fs/promises';
+import {readdir} from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { db, closeDatabase, waitForDatabase } from './client.js';
+import {fileURLToPath} from 'node:url';
+import {db, closeDatabase, waitForDatabase} from './client.js';
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
 const migrationsDir = path.resolve(currentDir, '../../migrations');
 const migrationLockName = 'parrot_schema_migrations';
 
-type LockRow = { acquired: number | null };
-type MigrationRow = { name: string };
+type LockRow = {acquired: number | null};
+type MigrationRow = {name: string};
 
 function splitSqlStatements(sql: string): string[] {
   const statements: string[] = [];

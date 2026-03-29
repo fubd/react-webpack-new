@@ -6,7 +6,8 @@
     "build": "cross-env NODE_ENV=production rsbuild build",
     "watch": "cross-env NODE_ENV=production rsbuild build --watch",
     "type-check": "tsc --project tsconfig.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",

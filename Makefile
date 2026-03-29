@@ -2,7 +2,6 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 STACK_ENV_FILE ?= .env
-DEPLOY_ENV_FILE ?= .env.deploy
 COMPOSE ?= docker compose
 DEPLOY_COMPOSE_FILE ?= docker-compose.deploy.yml
 BUILD_PLATFORMS ?= linux/amd64
@@ -27,11 +26,6 @@ include $(STACK_ENV_FILE)
 export
 endif
 
-ifneq (,$(wildcard $(DEPLOY_ENV_FILE)))
-include $(DEPLOY_ENV_FILE)
-export
-endif
-
 IMAGE_NAMESPACE ?= $(ALIYUN_USERNAME)
 BASE_NODE_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-node:22-alpine
 BASE_BUN_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-bun:1-alpine
@@ -50,7 +44,7 @@ BACKEND_CACHE_ARGS :=
 NGINX_CACHE_ARGS :=
 endif
 
-.PHONY: help guard-stack-env guard-deploy-env install build frontend-build type-check lint dev-backend migrate \
+.PHONY: help guard-stack-env install build frontend-build type-check lint dev-backend migrate \
 	compose-migrate up down restart logs ps acr-login seed-base-images ensure-base-images compose-build push remote-sync \
 	remote-deploy remote-verify remote-rollback remote-logs db-backup db-restore remote-db-backup remote-db-restore
 
@@ -84,9 +78,6 @@ help:
 
 guard-stack-env:
 	@test -f $(STACK_ENV_FILE) || (echo "Missing $(STACK_ENV_FILE). Copy .env.example to $(STACK_ENV_FILE) and fill it first." && exit 1)
-
-guard-deploy-env:
-	@test -f $(DEPLOY_ENV_FILE) || (echo "Missing $(DEPLOY_ENV_FILE). Copy .env.deploy.example to $(DEPLOY_ENV_FILE) and fill it first." && exit 1)
 
 install:
 	npm install
@@ -136,16 +127,16 @@ db-restore: guard-stack-env
 	COMPOSE_FILE=$(LOCAL_COMPOSE_FILE) \
 	bash scripts/mysql-restore.sh "$(BACKUP_FILE)"
 
-acr-login: guard-deploy-env
+acr-login:
 	@echo "$(ALIYUN_PASSWORD)" | docker login $(ALIYUN_REGISTRY) -u "$(ALIYUN_USERNAME)" --password-stdin
 
-seed-base-images: guard-stack-env guard-deploy-env acr-login
+seed-base-images: guard-stack-env acr-login
 	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_NODE_IMAGE) docker.io/library/node:22-alpine
 	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_BUN_IMAGE) docker.io/oven/bun:1-alpine
 	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_NGINX_IMAGE) docker.io/library/nginx:1.27-alpine
 	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_MYSQL_IMAGE) docker.io/library/mysql:8.4.4
 
-ensure-base-images: guard-stack-env guard-deploy-env acr-login
+ensure-base-images: guard-stack-env acr-login
 	@for image in \
 		"$(BASE_NODE_IMAGE)|docker.io/library/node:22-alpine" \
 		"$(BASE_BUN_IMAGE)|docker.io/oven/bun:1-alpine" \
@@ -161,7 +152,7 @@ ensure-base-images: guard-stack-env guard-deploy-env acr-login
 		fi; \
 	done
 
-compose-build: guard-stack-env guard-deploy-env ensure-base-images
+compose-build: guard-stack-env ensure-base-images
 	$(LOCAL_COMPOSE) build
 
 compose-migrate: guard-stack-env
@@ -171,7 +162,7 @@ compose-migrate: guard-stack-env
 up: frontend-build compose-build compose-migrate
 	$(LOCAL_COMPOSE) up -d --remove-orphans backend nginx
 
-push: guard-stack-env guard-deploy-env acr-login ensure-base-images
+push: guard-stack-env acr-login ensure-base-images
 	@attempt=1; \
 	while true; do \
 		docker buildx build --platform $(BUILD_PLATFORMS) --push \
@@ -205,7 +196,7 @@ push: guard-stack-env guard-deploy-env acr-login ensure-base-images
 		sleep $(BUILD_RETRY_DELAY); \
 	done
 
-remote-sync: guard-stack-env guard-deploy-env
+remote-sync: guard-stack-env
 	ssh $(REMOTE_HOST) "mkdir -p $(REMOTE_PATH) $(REMOTE_PATH)/scripts"
 	scp $(DEPLOY_COMPOSE_FILE) $(REMOTE_HOST):$(REMOTE_PATH)/$(DEPLOY_COMPOSE_FILE)
 	scp $(STACK_ENV_FILE) $(REMOTE_HOST):$(REMOTE_PATH)/.env
@@ -224,7 +215,7 @@ remote-deploy: push remote-sync
 		&& docker image prune -f"
 	@$(MAKE) remote-verify || { echo "Remote verification failed; attempting rollback."; $(MAKE) remote-rollback; exit 1; }
 
-remote-verify: guard-stack-env guard-deploy-env
+remote-verify: guard-stack-env
 	ssh $(REMOTE_HOST) "cd $(REMOTE_PATH) \
 		&& if [ ! -f $(REMOTE_RELEASE_ENV_FILE) ]; then printf 'VERSION=%s\n' '$(VERSION)' > $(REMOTE_RELEASE_ENV_FILE); fi \
 		&& $(REMOTE_COMPOSE) ps \
@@ -233,7 +224,7 @@ remote-verify: guard-stack-env guard-deploy-env
 		&& curl -fsS http://127.0.0.1:$(NGINX_PORT)/ >/dev/null \
 		&& curl -fsS http://127.0.0.1:$(NGINX_PORT)/api/v1/system/summary >/dev/null"
 
-remote-rollback: guard-stack-env guard-deploy-env
+remote-rollback: guard-stack-env
 	ssh $(REMOTE_HOST) "cd $(REMOTE_PATH) \
 		&& test -f $(REMOTE_PREVIOUS_RELEASE_ENV_FILE) \
 		&& cp $(REMOTE_PREVIOUS_RELEASE_ENV_FILE) $(REMOTE_RELEASE_ENV_FILE) \
@@ -255,7 +246,7 @@ remote-db-restore: remote-sync
 		&& if [ ! -f $(REMOTE_RELEASE_ENV_FILE) ]; then printf 'VERSION=%s\n' '$(VERSION)' > $(REMOTE_RELEASE_ENV_FILE); fi \
 		&& ENV_FILE=.env EXTRA_ENV_FILE=$(REMOTE_RELEASE_ENV_FILE) COMPOSE_FILE=$(DEPLOY_COMPOSE_FILE) bash scripts/mysql-restore.sh '$(BACKUP_FILE)'"
 
-remote-logs: guard-stack-env guard-deploy-env
+remote-logs: guard-stack-env
 	ssh $(REMOTE_HOST) "cd $(REMOTE_PATH) \
 		&& if [ ! -f $(REMOTE_RELEASE_ENV_FILE) ]; then printf 'VERSION=%s\n' '$(VERSION)' > $(REMOTE_RELEASE_ENV_FILE); fi \
 		&& $(REMOTE_COMPOSE) logs -f --tail=200"
