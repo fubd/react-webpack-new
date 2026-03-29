@@ -11,6 +11,91 @@ const migrationLockName = 'parrot_schema_migrations';
 type LockRow = { acquired: number | null };
 type MigrationRow = { name: string };
 
+function splitSqlStatements(sql: string): string[] {
+  const statements: string[] = [];
+  let currentStatement = '';
+  let inString = false;
+  let stringChar = '';
+  let inBlockComment = false;
+  let inLineComment = false;
+
+  for (let i = 0; i < sql.length; i++) {
+    const char = sql[i];
+    const nextChar = sql[i + 1] || '';
+
+    // If currently inside a block comment (/* ... */)
+    if (inBlockComment) {
+      currentStatement += char;
+      if (char === '*' && nextChar === '/') {
+        inBlockComment = false;
+        currentStatement += nextChar;
+        i++;
+      }
+      continue;
+    }
+
+    // If currently inside a line comment (-- ...)
+    if (inLineComment) {
+      currentStatement += char;
+      if (char === '\n') {
+        inLineComment = false;
+      }
+      continue;
+    }
+
+    // If currently inside a string literal ('...', "...", `...`)
+    if (inString) {
+      currentStatement += char;
+      if (char === '\\') {
+        currentStatement += nextChar; // Handle escaping
+        i++;
+      } else if (char === stringChar) {
+        inString = false;
+      }
+      continue;
+    }
+
+    // Start of a block comment
+    if (char === '/' && nextChar === '*') {
+      inBlockComment = true;
+      currentStatement += char + nextChar;
+      i++;
+      continue;
+    }
+
+    // Start of a line comment
+    if (char === '-' && nextChar === '-') {
+      inLineComment = true;
+      currentStatement += char + nextChar;
+      i++;
+      continue;
+    }
+
+    // Start of a string literal
+    if (char === "'" || char === '"' || char === '`') {
+      inString = true;
+      stringChar = char;
+      currentStatement += char;
+      continue;
+    }
+
+    // Not inside anything, safe to split?
+    if (char === ';') {
+      const trimmed = currentStatement.trim();
+      if (trimmed) statements.push(trimmed);
+      currentStatement = '';
+      continue;
+    }
+
+    currentStatement += char;
+  }
+
+  const finalTrimmed = currentStatement.trim();
+  if (finalTrimmed) statements.push(finalTrimmed);
+
+  return statements;
+}
+
 export const migrateDatabase = async () => {
   await waitForDatabase();
 
@@ -42,28 +127,59 @@ export const migrateDatabase = async () => {
         continue;
       }
 
+      console.log(`[migrate] reading: ${fileName}`);
       const migrationPath = path.join(migrationsDir, fileName);
       const migrationSql = await Bun.file(migrationPath).text();
 
-      // Execute each statement individually (handles multi-statement SQL files).
-      const statements = migrationSql
-        .split(';')
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const statements = splitSqlStatements(migrationSql);
 
-      for (const statement of statements) {
-        await db.unsafe(statement);
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dbAny = db as any;
+        if (typeof dbAny.begin === 'function') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await dbAny.begin(async (tx: any) => {
+            for (const statement of statements) {
+              await tx.unsafe(statement);
+            }
+            await tx`INSERT INTO schema_migrations (name) VALUES (${fileName})`;
+          });
+        } else if (typeof dbAny.transaction === 'function') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await dbAny.transaction(async (tx: any) => {
+            for (const statement of statements) {
+              await tx.unsafe(statement);
+            }
+            await tx`INSERT INTO schema_migrations (name) VALUES (${fileName})`;
+          });
+        } else {
+          // Native fallback transaction logic
+          await db`START TRANSACTION`;
+          try {
+            for (const statement of statements) {
+              await db.unsafe(statement);
+            }
+            await db`INSERT INTO schema_migrations (name) VALUES (${fileName})`;
+            await db`COMMIT`;
+          } catch (e) {
+            await db`ROLLBACK`;
+            throw e;
+          }
+        }
+        console.log(`[migrate] successfully applied: ${fileName}`);
+      } catch (e) {
+        console.error(`[migrate] ❌ failed to apply ${fileName}:`, e);
+        throw e;
       }
-
-      await db`INSERT INTO schema_migrations (name) VALUES (${fileName})`;
-      console.log(`[migrate] applied: ${fileName}`);
     }
+  } catch (err) {
+    console.error('[migrate] execution failed:', err);
+    throw err;
   } finally {
     await db`DO RELEASE_LOCK(${migrationLockName})`;
   }
 };
 
-// When invoked directly via `bun src/db/migrate.ts`
 if (import.meta.path === Bun.main) {
   migrateDatabase()
     .then(() => {

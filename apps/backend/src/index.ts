@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { logger } from 'hono/logger';
 import { db, closeDatabase, waitForDatabase } from './db/client.js';
 import { migrateDatabase } from './db/migrate.js';
 import { env } from './env.js';
@@ -20,44 +21,37 @@ type NewsRow = {
 
 const app = new Hono();
 
+app.use('*', logger());
+
+app.onError((err, context) => {
+  console.error('[backend] ❌ unhandled error:', err);
+  return context.json(
+    {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Internal Server Error',
+    },
+    500
+  );
+});
+
 app.use('/api/*', cors({ origin: '*' }));
 
 app.get('/healthz', async (context) => {
-  try {
-    await db`SELECT 1 AS ok`;
-
-    return context.json({
-      status: 'ok',
-      service: 'backend',
-      database: 'connected',
-    });
-  } catch (error) {
-    return context.json({
-      status: 'error',
-      service: 'backend',
-      database: 'disconnected',
-      message: error instanceof Error ? error.message : 'Unknown database error',
-    }, 500);
-  }
+  await db`SELECT 1 AS ok`;
+  return context.json({
+    status: 'ok',
+    service: 'backend',
+    database: 'connected',
+  });
 });
 
 app.get('/api/health', async (context) => {
-  try {
-    await db`SELECT 1 AS ok`;
-
-    return context.json({
-      status: 'ok',
-      database: 'connected',
-      version: env.version,
-    });
-  } catch (error) {
-    return context.json({
-      status: 'error',
-      database: 'disconnected',
-      version: env.version,
-      message: error instanceof Error ? error.message : 'Unknown database error',
-    }, 500);
-  }
+  await db`SELECT 1 AS ok`;
+  return context.json({
+    status: 'ok',
+    database: 'connected',
+    version: env.version,
+  });
 });
 
 app.get('/api/v1/system/summary', async (context) => {

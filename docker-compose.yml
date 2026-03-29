@@ -31,10 +31,11 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:26031/healthz >/dev/null || exit 1"]
-      interval: 20s
+      interval: 5s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 10s
+      start_interval: 1s
     mem_limit: 256m
     networks:
       - parrot
@@ -64,10 +65,11 @@ services:
       - mysql-data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 15s
+      interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 5
       start_period: 20s
+      start_interval: 1s
     mem_limit: 512m
     networks:
       - parrot
@@ -90,10 +92,11 @@ services:
       - ./apps/frontend/dist:/usr/share/nginx/html:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz >/dev/null || exit 1"]
-      interval: 20s
+      interval: 5s
       timeout: 5s
       retries: 3
       start_period: 10s
+      start_interval: 1s
     mem_limit: 64m
     networks:
       - parrot
