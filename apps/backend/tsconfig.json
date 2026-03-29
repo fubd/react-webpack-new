@@ -1,20 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": [
-      "esnext"
-    ],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "rootDir": "src",
-    "outDir": "dist",
-    "types": [
-      "node"
-    ],
-    "noEmit": false,
-    "sourceMap": true
+    "lib": ["esnext"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["bun-types"],
+    "noEmit": true,
+    "sourceMap": false
   },
-  "include": [
-    "src"
-  ]
+  "include": ["src"]
 }

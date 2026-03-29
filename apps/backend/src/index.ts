@@ -1,9 +1,8 @@
-import {serve} from '@hono/node-server';
-import {sql} from 'drizzle-orm';
-import {Hono} from 'hono';
-import {cors} from 'hono/cors';
-import {closeDatabase, getRows, pingDatabase, waitForDatabase} from './db/client.js';
-import {env} from './env.js';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { db, closeDatabase, waitForDatabase } from './db/client.js';
+import { migrateDatabase } from './db/migrate.js';
+import { env } from './env.js';
 
 type SummaryRow = {
   publishedNewsCount: number;
@@ -21,11 +20,11 @@ type NewsRow = {
 
 const app = new Hono();
 
-app.use('/api/*', cors({origin: '*'}));
+app.use('/api/*', cors({ origin: '*' }));
 
 app.get('/healthz', async (context) => {
   try {
-    await pingDatabase();
+    await db`SELECT 1 AS ok`;
 
     return context.json({
       status: 'ok',
@@ -44,7 +43,7 @@ app.get('/healthz', async (context) => {
 
 app.get('/api/health', async (context) => {
   try {
-    await pingDatabase();
+    await db`SELECT 1 AS ok`;
 
     return context.json({
       status: 'ok',
@@ -62,13 +61,13 @@ app.get('/api/health', async (context) => {
 });
 
 app.get('/api/v1/system/summary', async (context) => {
-  const [summary] = await getRows<SummaryRow>(sql`
+  const [summary] = await db<SummaryRow[]>`
     SELECT
       COUNT(*) AS publishedNewsCount,
       DATE_FORMAT(MAX(published_at), '%Y-%m-%d %H:%i:%s') AS latestPublishedAt
     FROM news_posts
     WHERE is_published = 1
-  `);
+  `;
 
   return context.json({
     appName: env.appName,
@@ -78,15 +77,15 @@ app.get('/api/v1/system/summary', async (context) => {
     latestPublishedAt: summary?.latestPublishedAt ?? null,
     services: [
       'React 19 + Rsbuild',
-      'Hono + TypeScript',
-      'Drizzle raw SQL + MySQL',
+      'Hono + Bun',
+      'Bun.sql (MySQL)',
       'Nginx + Docker Compose',
     ],
   });
 });
 
 app.get('/api/v1/news', async (context) => {
-  const rows = await getRows<NewsRow>(sql`
+  const rows = await db<NewsRow[]>`
     SELECT
       id,
       slug,
@@ -97,7 +96,7 @@ app.get('/api/v1/news', async (context) => {
     FROM news_posts
     WHERE is_published = 1
     ORDER BY published_at DESC, id DESC
-  `);
+  `;
 
   return context.json({
     items: rows.map((row) => ({
@@ -116,6 +115,7 @@ app.get('/api/v1/meta', (context) => {
     appName: env.appName,
     version: env.version,
     ports: {
+      frontend: Number(process.env.FRONTEND_PORT ?? 26030),
       backend: Number(process.env.BACKEND_PORT ?? 26031),
       mysql: Number(process.env.MYSQL_PORT ?? 26032),
       nginx: Number(process.env.NGINX_PORT ?? 26033),
@@ -125,36 +125,21 @@ app.get('/api/v1/meta', (context) => {
 
 const shutdown = async (signal: string) => {
   console.log(`[backend] received ${signal}, shutting down`);
+  server.stop(true);
   await closeDatabase();
   process.exit(0);
 };
 
-const startServer = async () => {
-  await waitForDatabase();
+await waitForDatabase();
+await migrateDatabase();
 
-  serve(
-    {
-      fetch: app.fetch,
-      port: env.port,
-      hostname: '0.0.0.0',
-    },
-    (info) => {
-      console.log(`[backend] listening on http://localhost:${info.port}`);
-    },
-  );
-};
-
-process.on('SIGINT', () => {
-  void shutdown('SIGINT');
+const server = Bun.serve({
+  fetch: app.fetch,
+  port: env.port,
+  hostname: '0.0.0.0',
 });
 
-process.on('SIGTERM', () => {
-  void shutdown('SIGTERM');
-});
+console.log(`[backend] listening on http://localhost:${server.port}`);
 
-startServer().catch(async (error: unknown) => {
-  console.error('[backend] failed to start');
-  console.error(error);
-  await closeDatabase();
-  process.exit(1);
-});
+process.on('SIGINT', () => { void shutdown('SIGINT'); });
+process.on('SIGTERM', () => { void shutdown('SIGTERM'); });

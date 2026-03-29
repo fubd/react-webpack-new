@@ -34,6 +34,7 @@ endif
 
 IMAGE_NAMESPACE ?= $(ALIYUN_USERNAME)
 BASE_NODE_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-node:22-alpine
+BASE_BUN_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-bun:1-alpine
 BASE_NGINX_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-nginx:1.27-alpine
 BASE_MYSQL_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-mysql:8.4.4
 BACKEND_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-backend:$(VERSION)
@@ -139,22 +140,24 @@ acr-login: guard-deploy-env
 	@echo "$(ALIYUN_PASSWORD)" | docker login $(ALIYUN_REGISTRY) -u "$(ALIYUN_USERNAME)" --password-stdin
 
 seed-base-images: guard-stack-env guard-deploy-env acr-login
-	docker buildx imagetools create --platform linux/amd64 --tag $(BASE_NODE_IMAGE) docker.io/library/node:22-alpine
-	docker buildx imagetools create --platform linux/amd64 --tag $(BASE_NGINX_IMAGE) docker.io/library/nginx:1.27-alpine
-	docker buildx imagetools create --platform linux/amd64 --tag $(BASE_MYSQL_IMAGE) docker.io/library/mysql:8.4.4
+	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_NODE_IMAGE) docker.io/library/node:22-alpine
+	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_BUN_IMAGE) docker.io/oven/bun:1-alpine
+	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_NGINX_IMAGE) docker.io/library/nginx:1.27-alpine
+	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_MYSQL_IMAGE) docker.io/library/mysql:8.4.4
 
 ensure-base-images: guard-stack-env guard-deploy-env acr-login
 	@for image in \
 		"$(BASE_NODE_IMAGE)|docker.io/library/node:22-alpine" \
+		"$(BASE_BUN_IMAGE)|docker.io/oven/bun:1-alpine" \
 		"$(BASE_NGINX_IMAGE)|docker.io/library/nginx:1.27-alpine" \
 		"$(BASE_MYSQL_IMAGE)|docker.io/library/mysql:8.4.4"; do \
 		target="$${image%%|*}"; \
 		source_image="$${image##*|}"; \
-		if docker buildx imagetools inspect "$$target" 2>/dev/null | grep -q "Platform:[[:space:]]*linux/amd64"; then \
-			echo "Using existing amd64 $$target"; \
+		if docker buildx imagetools inspect "$$target" 2>/dev/null | grep -q "Platform:[[:space:]]*linux/arm64"; then \
+			echo "Using existing multi-arch $$target"; \
 		else \
-			echo "Seeding amd64 $$target from $$source_image"; \
-			docker buildx imagetools create --platform linux/amd64 --tag "$$target" "$$source_image"; \
+			echo "Seeding multi-arch $$target from $$source_image"; \
+			docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag "$$target" "$$source_image"; \
 		fi; \
 	done
 
@@ -163,7 +166,7 @@ compose-build: guard-stack-env guard-deploy-env ensure-base-images
 
 compose-migrate: guard-stack-env
 	$(LOCAL_COMPOSE) up -d mysql
-	$(LOCAL_COMPOSE) run --rm --no-deps backend npm run migrate:prod --workspace @parrot/backend
+	$(LOCAL_COMPOSE) run --rm --no-deps backend bun run migrate
 
 up: frontend-build compose-build compose-migrate
 	$(LOCAL_COMPOSE) up -d --remove-orphans backend nginx
@@ -173,12 +176,7 @@ push: guard-stack-env guard-deploy-env acr-login ensure-base-images
 	while true; do \
 		docker buildx build --platform $(BUILD_PLATFORMS) --push \
 			$(BACKEND_CACHE_ARGS) \
-			--build-arg BASE_NODE_IMAGE=$(BASE_NODE_IMAGE) \
-			--build-arg NPM_REGISTRY=$(NPM_REGISTRY) \
-			--build-arg NPM_FETCH_RETRIES=$(NPM_FETCH_RETRIES) \
-			--build-arg NPM_FETCH_RETRY_FACTOR=$(NPM_FETCH_RETRY_FACTOR) \
-			--build-arg NPM_FETCH_RETRY_MINTIMEOUT=$(NPM_FETCH_RETRY_MINTIMEOUT) \
-			--build-arg NPM_FETCH_RETRY_MAXTIMEOUT=$(NPM_FETCH_RETRY_MAXTIMEOUT) \
+			--build-arg BASE_BUN_IMAGE=$(BASE_BUN_IMAGE) \
 			-t $(BACKEND_IMAGE) \
 			-f apps/backend/Dockerfile . && break; \
 		status=$$?; \
@@ -221,7 +219,7 @@ remote-deploy: push remote-sync
 		&& echo '$(ALIYUN_PASSWORD)' | docker login $(ALIYUN_REGISTRY) -u '$(ALIYUN_USERNAME)' --password-stdin \
 		&& $(REMOTE_COMPOSE) pull \
 		&& $(REMOTE_COMPOSE) up -d mysql \
-		&& $(REMOTE_COMPOSE) run --rm --no-deps backend npm run migrate:prod --workspace @parrot/backend \
+		&& $(REMOTE_COMPOSE) run --rm --no-deps backend bun run migrate \
 		&& $(REMOTE_COMPOSE) up -d --remove-orphans --no-build \
 		&& docker image prune -f"
 	@$(MAKE) remote-verify || { echo "Remote verification failed; attempting rollback."; $(MAKE) remote-rollback; exit 1; }

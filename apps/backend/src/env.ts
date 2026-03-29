@@ -1,12 +1,4 @@
-import path from 'node:path';
-import {fileURLToPath} from 'node:url';
-import dotenv from 'dotenv';
-
-const currentDir = path.dirname(fileURLToPath(import.meta.url));
-
-dotenv.config({
-  path: path.resolve(currentDir, '../../../.env'),
-});
+// Bun auto-loads .env — no dotenv import needed.
 
 const readString = (key: string, fallback?: string) => {
   const value = process.env[key] ?? fallback;

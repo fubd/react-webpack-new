@@ -7,7 +7,7 @@ services:
       context: .
       dockerfile: apps/backend/Dockerfile
       args:
-        BASE_NODE_IMAGE: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-node:22-alpine
+        BASE_BUN_IMAGE: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-bun:1-alpine
     restart: unless-stopped
     init: true
     environment:

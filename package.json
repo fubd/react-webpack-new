@@ -6,7 +6,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace @parrot/frontend && npm run build --workspace @parrot/backend",
+    "build": "npm run build --workspace @parrot/frontend",
     "build:frontend": "npm run build --workspace @parrot/frontend",
     "type-check": "npm run type-check --workspace @parrot/frontend && npm run type-check --workspace @parrot/backend",
     "lint": "npm run lint --workspace @parrot/frontend && npm run lint --workspace @parrot/backend",
