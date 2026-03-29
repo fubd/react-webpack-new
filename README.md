@@ -97,15 +97,34 @@ make remote-logs
 make remote-rollback
 ```
 
-### 数据备份 (Database Backup)
-定时抓取当前生产库的全量冷备数据到本地或备份服，无需登录数据库写指令：
+### 数据库持久化与安全避坑 (Data Voluming & Pitfalls)
+
+我们的系统使用 Docker **命名卷 (Named Volume)** 作为 MySQL 的底层存储。在 `docker-compose.yml` 中被标记为 `mysql-data`。
+
+1. **为什么叫 `mysql-data`？会跟别的项目冲突吗？**
+   在 Docker 的底层命名空间机制下，由于我们顶层申明了 `name: parrot`，这个卷真正在宿主机里创建时的名字叫作 **`parrot_mysql-data`**。它天然自带了项目名的前缀隔离，绝对不会和其他项目互相覆盖跑偏。这正是短名字优雅而不随意的体现。
+2. **⚠️ 极高危：删除了体积卷会导致永久丢失数据**
+   平时用 `docker compose down` 关停服务是安全的。但**绝对不能手滑加上 `-v` 参数**（即 `docker compose down -v`）。一旦执行，Docker 会毫不留情地连同 `parrot_mysql-data` 一起抹除，所有文章和用户数据会灰飞烟灭。
+3. **⚠️ 中危：服务器整体搬迁盲区**
+   由于你的数据根本不在代码文件夹内，而是被 Docker 引擎深度隐藏在 `/var/lib/docker/volumes/` 系统级底层目录下。因此如果你换服务器，仅仅把项目代码整个拷走，新服务器启动依旧会是一个“零数据”空壳。你必须使用如下的冷备功能来导出数据搬迁。
+
+### 数据库备份与恢复 (Database Backup & Restore)
+
+为了防御以上随时可能发生的灾难场景（手滑删除、换服务器等），我们内置了全量数据库快照工具：
+
+**主动备份数据：**
+在需要做大动作前，运行这个指令抓取当前生产库的全量冷备数据（无需登录进数据库敲长串的 `mysqldump` 指令）：
 ```bash
 make remote-db-backup
 ```
-数据库快照会存放在服务器的 `backups/mysql` 中。当需要紧急恢复时（请准备好 `file.sql.gz` 文件）：
+数据库快照会**自动下载**并存放在目标服务器和你本地的 `backups/mysql/` 中。只要这个 `*.sql.gz` 文件捏在手里，就算服务器炸废了都可以原地秒复活。
+
+**如何紧急恢复或搬家还原？**
+（请准备好刚才那个 `xxxxx.sql.gz` 文件放在目录里）：
 ```bash
 make remote-db-restore BACKUP_FILE=backups/mysql/你的快照文件名.sql.gz
 ```
+运行后，当前环境的数据库将无缝覆盖回滚到你快照产生的那一刻。
 
 ---
 
