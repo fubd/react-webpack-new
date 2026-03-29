@@ -7,9 +7,9 @@
   ],
   "scripts": {
     "build": "npm run build --workspace @parrot/frontend && npm run build --workspace @parrot/backend",
+    "build:frontend": "npm run build --workspace @parrot/frontend",
     "type-check": "npm run type-check --workspace @parrot/frontend && npm run type-check --workspace @parrot/backend",
     "lint": "npm run lint --workspace @parrot/frontend && npm run lint --workspace @parrot/backend",
-    "dev:frontend": "npm run dev --workspace @parrot/frontend",
     "dev:backend": "npm run dev --workspace @parrot/backend",
     "migrate": "npm run migrate --workspace @parrot/backend"
   },

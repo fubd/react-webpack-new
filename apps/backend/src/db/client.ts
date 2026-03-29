@@ -16,7 +16,6 @@ export const pool = mysql.createPool({
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
-  multipleStatements: true,
   timezone: 'Z',
 });
 
@@ -57,6 +56,23 @@ export const getFirstRow = async <Row extends Record<string, unknown>>(statement
 
 export const pingDatabase = async () => {
   await db.execute(sql`SELECT 1 AS ok`);
+};
+
+export const waitForDatabase = async (attempts = 20, delayMs = 2_000) => {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await pingDatabase();
+      return;
+    } catch (error) {
+      if (attempt === attempts) {
+        throw error;
+      }
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, delayMs);
+      });
+    }
+  }
 };
 
 export const closeDatabase = async () => {

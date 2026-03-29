@@ -62,6 +62,8 @@ const News: React.FC = () => {
     <div style={{display: 'grid', gap: 20}}>
       <Typography.Title level={2} style={{marginBottom: 0}}>News</Typography.Title>
       <Typography.Paragraph style={{marginTop: 0}}>
+        hey
+        <br/>
         These entries are coming from MySQL through the new Hono API.
       </Typography.Paragraph>
       {items.map((item) => (

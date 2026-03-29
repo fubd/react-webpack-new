@@ -98,7 +98,7 @@ const Home: React.FC = () => {
 
           <div className="serviceList">
             {(summary?.services ?? [
-              'React 19 + Webpack',
+              'React 19 + Rsbuild',
               'Hono + TypeScript',
               'Drizzle raw SQL + MySQL',
               'Nginx + Docker Compose',

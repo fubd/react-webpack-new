@@ -2,8 +2,7 @@ import {serve} from '@hono/node-server';
 import {sql} from 'drizzle-orm';
 import {Hono} from 'hono';
 import {cors} from 'hono/cors';
-import {closeDatabase, getRows, pingDatabase} from './db/client.js';
-import {migrateDatabase} from './db/migrate.js';
+import {closeDatabase, getRows, pingDatabase, waitForDatabase} from './db/client.js';
 import {env} from './env.js';
 
 type SummaryRow = {
@@ -78,7 +77,7 @@ app.get('/api/v1/system/summary', async (context) => {
     publishedNewsCount: Number(summary?.publishedNewsCount ?? 0),
     latestPublishedAt: summary?.latestPublishedAt ?? null,
     services: [
-      'React 19 + Webpack',
+      'React 19 + Rsbuild',
       'Hono + TypeScript',
       'Drizzle raw SQL + MySQL',
       'Nginx + Docker Compose',
@@ -117,30 +116,12 @@ app.get('/api/v1/meta', (context) => {
     appName: env.appName,
     version: env.version,
     ports: {
-      frontend: Number(process.env.FRONTEND_PORT ?? 26030),
       backend: Number(process.env.BACKEND_PORT ?? 26031),
       mysql: Number(process.env.MYSQL_PORT ?? 26032),
       nginx: Number(process.env.NGINX_PORT ?? 26033),
     },
   });
 });
-
-const waitForDatabase = async () => {
-  for (let attempt = 1; attempt <= 20; attempt += 1) {
-    try {
-      await pingDatabase();
-      return;
-    } catch (error) {
-      if (attempt === 20) {
-        throw error;
-      }
-
-      await new Promise((resolve) => {
-        setTimeout(resolve, 2_000);
-      });
-    }
-  }
-};
 
 const shutdown = async (signal: string) => {
   console.log(`[backend] received ${signal}, shutting down`);
@@ -150,7 +131,6 @@ const shutdown = async (signal: string) => {
 
 const startServer = async () => {
   await waitForDatabase();
-  await migrateDatabase();
 
   serve(
     {
