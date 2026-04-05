@@ -32,7 +32,7 @@ export default defineConfig({
   },
   html: {
     template: './public/index.html',
-    title: 'Dot SaaS',
+    title: 'Parrot',
     // Inject UMD bundles before the app script so globals are available.
     tags: [
       {tag: 'script', attrs: {src: CDN.react, crossorigin: 'anonymous', defer: true}, append: false},

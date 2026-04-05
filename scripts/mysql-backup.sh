@@ -8,6 +8,7 @@ ENV_FILE="${ENV_FILE:-}"
 EXTRA_ENV_FILE="${EXTRA_ENV_FILE:-}"
 BACKUP_DIR="${BACKUP_DIR:-backups/mysql}"
 DATABASE_NAME="${DATABASE_NAME:-mysql}"
+BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-0}"
 
 compose_cmd=(docker compose)
 
@@ -59,3 +60,9 @@ mv "${tmp_file}" "${output_file}"
 trap - EXIT
 
 echo "Created MySQL backup: ${output_file}"
+
+# Retention cleanup: remove backups older than BACKUP_RETENTION_DAYS days.
+if [[ "${BACKUP_RETENTION_DAYS}" -gt 0 ]]; then
+  find "${output_dir}" -maxdepth 1 -name "*.sql.gz" -mtime +"${BACKUP_RETENTION_DAYS}" -delete
+  echo "Cleaned up backups older than ${BACKUP_RETENTION_DAYS} days in ${output_dir}"
+fi

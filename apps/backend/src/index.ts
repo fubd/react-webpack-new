@@ -1,4 +1,5 @@
 import {Hono} from 'hono';
+import {HTTPException} from 'hono/http-exception';
 import {cors} from 'hono/cors';
 import {logger} from 'hono/logger';
 import {db, closeDatabase, waitForDatabase} from './db/client.js';
@@ -24,13 +25,24 @@ const app = new Hono();
 app.use('*', logger());
 
 app.onError((err, context) => {
-  console.error('[backend] ❌ unhandled error:', err);
+  const status = err instanceof HTTPException ? err.status : 500;
+  console.error(`[backend] ❌ ${context.req.method} ${context.req.path} →`, err);
   return context.json(
     {
       status: 'error',
       message: err instanceof Error ? err.message : 'Internal Server Error',
     },
-    500,
+    status,
+  );
+});
+
+app.notFound((context) => {
+  return context.json(
+    {
+      status: 'not_found',
+      message: `${context.req.method} ${context.req.path} not found`,
+    },
+    404,
   );
 });
 

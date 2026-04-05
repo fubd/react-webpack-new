@@ -8,3 +8,5 @@ apps/**/dist/
 !.env.example
 !.env.deploy.example
 backups/
+.watch.pid
+.watch.log

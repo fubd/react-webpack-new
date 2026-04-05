@@ -15,7 +15,7 @@ const MainLayout = () => {
             </span>
             <span className="brandText">
               <span className="brandEyebrow">Product Starter</span>
-              <span className="brandName">Dot SaaS</span>
+              <span className="brandName">Parrot</span>
             </span>
           </Link>
           <nav className="nav" aria-label="Primary">
@@ -65,7 +65,7 @@ const MainLayout = () => {
         </div>
       </main>
       <footer className="footer">
-        Dot SaaS ©{new Date().getFullYear()} Frontend, API, MySQL, nginx, and Docker in one branch.
+        Parrot ©{new Date().getFullYear()} Frontend, API, MySQL, nginx, and Docker in one branch.
       </footer>
     </div>
   );

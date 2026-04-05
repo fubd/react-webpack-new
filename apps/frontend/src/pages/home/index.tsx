@@ -54,7 +54,7 @@ const Home: React.FC = () => {
       <section className="hero">
         <div className="heroCopy">
           <Tag color="cyan" bordered={false}>Full-stack refactor branch</Tag>
-          <h1 className="heroTitle">Ship Dot with a frontend, backend, database, and gateway that already fit together.</h1>
+          <h1 className="heroTitle">HELLO WORLD</h1>
           <p className="heroSubtitle">
             React stays on the surface, Hono serves the API, MySQL stores the data,
             and nginx routes traffic without taking on SSL responsibility inside the container boundary.
@@ -80,7 +80,7 @@ const Home: React.FC = () => {
           <div className="systemStats">
             <article className="statCard">
               <span className="statLabel">App name</span>
-              <strong className="statValue">{summary?.appName ?? 'Dot SaaS'}</strong>
+              <strong className="statValue">{summary?.appName ?? 'Parrot'}</strong>
             </article>
             <article className="statCard">
               <span className="statLabel">Published news</span>

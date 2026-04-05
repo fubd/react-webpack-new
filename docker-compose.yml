@@ -105,24 +105,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  watcher:
-    image: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-node:22-alpine
-    working_dir: /app
-    command: >
-      sh -c "npm install --prefer-offline &&
-             npm run watch --workspace @parrot/frontend"
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/apps/backend/node_modules
-      - /app/apps/frontend/node_modules
-    networks:
-      - parrot
-    logging:
-      options:
-        max-size: "5m"
-        max-file: "2"
-
 volumes:
   mysql-data:
 

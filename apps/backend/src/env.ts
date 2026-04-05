@@ -27,7 +27,7 @@ const readNumber = (key: string, fallback: number) => {
 };
 
 export const env = {
-  appName: readString('APP_NAME', 'Dot SaaS'),
+  appName: readString('APP_NAME', 'Parrot'),
   nodeEnv: readString('NODE_ENV', 'development'),
   version: readString('VERSION', 'latest'),
   port: readNumber('PORT', readNumber('BACKEND_PORT', 26031)),

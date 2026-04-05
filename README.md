@@ -1,149 +1,604 @@
-# 🦜 Parrot Platform 开发者指南
+# Parrot Platform
 
-本文档全面梳理了本项目（Parrot Platform）的系统架构、开发流、数据库操作规范以及生产环境的部署与维护指南。这是参与本项目的核心向导。
+基于 **Bun + Hono + MySQL + React + Nginx** 的轻量全栈 Monorepo 基座，所有运维操作通过 `Makefile` 一行命令完成。
 
----
-
-## 1. 架构概览 (Architecture)
-
-本项目是一个激进且极度轻量化的“双工作空间” (Monorepo) 全栈单体应用，彻底拥抱了最新的底层基础设施：
-
-- **前端 (Frontend)**: `React 19` + `Rsbuild`。抛弃了沉重的 Webpack，利用 Rspack 的底层 Rust 能力实现极速编译。核心 JS 包通过 jsDelivr CDN 挂载，大幅减轻主包体积。开发时支持热构建，生产时完全转化为纯净的静态文件。
-- **后端 (Backend)**: `Bun` + `Hono`。完全摒弃 Node.js。借助 Bun 原生内置的 Web Server、原生支持的 `.env` 以及 C++ 编写的极致性能 原生 SQL 驱动 (`Bun.sql`)，无须任何 ORM（如 drizzle/prisma）带来的性能与心智开销。
-- **持久层 (Database)**: `MySQL 8.4` 提供硬核存储。
-- **网关层 (Proxy)**: `Nginx`，承担静态资源分发（开启了全局 Gzip 压缩）和 API 反向代理。
-- **目录结构与工作空间 (Workspace)**: 基于 `npm workspace` 构建统一的单体代码库 (Monorepo)。核心业务逻辑严密区分并在各自的目录中自治：
-  - `apps/frontend/`: 前端独立应用目录。
-  - `apps/backend/`: 后端微服务目录。
-  - 此设计下，前后端共享根目录顶级的 `package.json` 统一管理依赖图谱，并在未来天然支持跨端接口类型 (Types) 直接 `import` 导入，消除端与端之间的壁垒。
-- **编排层 (Orchestration)**: `Docker Compose` 与 `Makefile`。所有的运维、打包、部署命令甚至回滚，统一封装进 Makefile，不需要引入重型 CI/CD 也能做到极优雅的上云操作。
+```
+Browser
+  └─▶ Nginx :26033
+        ├─ /api/*  ──▶ Hono Backend :26031 ──▶ MySQL :26032
+        └─ /*      ──▶ React SPA (静态文件)
+```
 
 ---
 
-## 2. 本地开发 (Development)
+## 目录
 
-所有的开发所需依赖项都封装在 Docker 中。你只需要安装了 `Docker Desktop` 即可：
+- [技术栈](#技术栈)
+- [目录结构](#目录结构)
+- [快速开始](#快速开始)
+- [本地开发](#本地开发)
+- [数据库与迁移](#数据库与迁移)
+- [数据库备份与恢复](#数据库备份与恢复)
+- [构建与部署](#构建与部署)
+- [回滚](#回滚)
+- [API 接口](#api-接口)
+- [环境变量参考](#环境变量参考)
+- [Make 命令速查](#make-命令速查)
+- [常见问题](#常见问题)
+- [开发哲学](#开发哲学)
+- [密钥管理](#密钥管理)
 
-### 启动全栈
-在项目根目录运行：
+---
+
+## 技术栈
+
+| 层 | 技术 | 说明 |
+|---|---|---|
+| 前端 | React 19 + Rsbuild | Rspack 驱动，极速编译；核心包通过 CDN 加载 |
+| 后端 | Bun + Hono | 原生 HTTP server，零依赖 SQL 驱动（`Bun.sql`） |
+| 数据库 | MySQL 8.4 | 原生 SQL，无 ORM |
+| 网关 | Nginx 1.27 | Gzip 压缩 + 静态资源缓存 + API 反向代理 |
+| 编排 | Docker Compose + Makefile | 本地开发 & 生产部署统一入口 |
+| 镜像仓库 | 阿里云 ACR | 支持 `linux/amd64` 和 `arm64` 双架构 |
+| 语言 | TypeScript 5.9（strict） | 前后端统一，共享根目录 ESLint 配置 |
+
+---
+
+## 目录结构
+
+```
+parrot/
+├── apps/
+│   ├── backend/                # Hono API 服务
+│   │   ├── src/
+│   │   │   ├── index.ts        # 路由、中间件、启动入口
+│   │   │   ├── env.ts          # 环境变量验证
+│   │   │   └── db/
+│   │   │       ├── client.ts   # Bun.sql 连接 + 健康等待
+│   │   │       └── migrate.ts  # 迁移运行时（事务 + 锁 + 幂等）
+│   │   ├── migrations/         # SQL 迁移文件（按序号前缀命名）
+│   │   ├── Dockerfile
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   └── frontend/               # React SPA
+│       ├── src/
+│       │   ├── App.tsx         # 路由 + Ant Design 主题
+│       │   ├── layouts/        # MainLayout（Header / Nav / Footer）
+│       │   ├── pages/          # home / about / news
+│       │   ├── routes/         # 路由配置与懒加载
+│       │   └── theme/          # Ant Design token 配置
+│       ├── public/index.html
+│       ├── rsbuild.config.mjs
+│       ├── package.json
+│       └── tsconfig.json
+├── infra/
+│   └── nginx/
+│       ├── default.conf        # 路由规则、Gzip、缓存策略
+│       └── Dockerfile          # 多阶段构建：Node 编译前端 → Nginx 运行时
+├── scripts/
+│   ├── mysql-backup.sh         # 手动/定时备份（支持保留期清理）
+│   ├── mysql-restore.sh        # 从快照恢复
+│   └── setup-backup-cron.sh    # 安装定时备份 cron job
+├── docker-compose.yml          # 本地开发栈（含 watcher 热构建）
+├── docker-compose.deploy.yml   # 生产部署栈
+├── Makefile                    # 所有操作入口
+├── .env.example                # 环境变量模板
+└── tsconfig.base.json          # 共享 TypeScript 配置
+```
+
+---
+
+## 快速开始
+
+### 前置依赖
+
+| 工具 | 版本要求 | 说明 |
+|------|----------|------|
+| Docker Desktop | 最新版 | 包含 `docker compose` 和 `buildx` |
+| Node.js | ≥ 22 | 仅前端 watcher 容器使用；也可直接用宿主机 |
+| make | 系统自带 | macOS / Linux 均已内置 |
+| SSH 密钥 | — | 远端部署时需要免密登录目标服务器 |
+
+### 第一次启动
+
 ```bash
+# 1. 克隆项目
+git clone <repo-url> && cd parrot
+
+# 2. 复制环境变量模板
+cp .env.example .env
+# 编辑 .env，至少填写 MYSQL_PASSWORD、MYSQL_ROOT_PASSWORD
+# 以及 ALIYUN_* 相关字段（部署时才需要）
+
+# 3. 一键启动
 make up
 ```
-这会：
-1. 构建前端静态资源到 `apps/frontend/dist`
-2. 检查或同步所需的阿里云源/官方源基础依赖镜像 (已支持双架构 `arm64/amd64`)
-3. 按照 `mysql` -> `backend` -> `nginx` 的严格健康度探测顺序启动集群
-4. **Nginx 会代理在 `http://localhost:26033`**。开发阶段，所有请求都应该从此端口进入。
 
-### 自动化开发流
-本地的 `docker-compose.yml` 内置了一个特制的 `watcher` 容器。
-- **修改前端 (JSX/TSX)**：你只管保存文件，`watcher` 会在 0.3 秒内静默刷新 `dist` 文件夹，你**直接在浏览器刷新 `http://localhost:26033`** 即可看到最新效果，**不需要在终端运行任何多余的前端命令**。
-- **修改后端 (Hono/DB)**：修改后端代码后，直接运行 `make restart`。由于我们极大优化了 Healthcheck，后端的重启与可用仅需几秒钟。
+`make up` 会依次完成：
+1. 构建前端静态资源到 `apps/frontend/dist/`
+2. 检查并同步阿里云 ACR 基础镜像（首次较慢）
+3. 按健康检查顺序启动 `mysql → backend → nginx`
+4. 自动执行 SQL 迁移
+
+启动后访问：**http://localhost:26033**
 
 ---
 
-## 3. 数据库操作与迁移 (Database & Migrations)
+## 本地开发
 
-由于我们去除了厚重的 ORM 层，我们构建了一套带智能 Tokenizer 解析和数据库层面事务回滚的工业级 Migration Runtime。
+### 修改前端
 
-### 如何调整表结构？
-永远不要直接去修改现有的表。在 `apps/backend/migrations/` 目录下新增一个以时间/序号前缀命名的 `.sql` 文件，例如：
-`apps/backend/migrations/0002_add_user_profile.sql`
+前端使用 `watcher` 容器监听文件变化，保存后自动重新构建：
 
-在 `.sql` 内，你可以使用纯正的 SQL：
+```bash
+# 已通过 make up 启动栈后，直接编辑 apps/frontend/src/ 下的文件
+# 保存 → watcher 0.3s 内重新编译 dist/
+# 浏览器刷新 http://localhost:26033 即可看到效果
+```
+
+无需重启任何容器，也无需额外命令。
+
+### 修改后端
+
+后端代码不支持热重载，改完后执行：
+
+```bash
+make restart
+```
+
+等待几秒，后端重启并通过健康检查后自动恢复。
+
+### 不使用 Docker 开发后端
+
+如果只想在宿主机跑后端（需要本地装 Bun ≥ 1 且 MySQL 已在运行）：
+
+```bash
+# 安装依赖
+npm install
+
+# 运行迁移
+make migrate
+
+# 启动带热重载的后端（监听文件变化自动重启）
+make dev-backend
+```
+
+### 代码检查与类型校验
+
+```bash
+make lint          # ESLint 检查（前后端）
+make type-check    # tsc --noEmit（前后端）
+
+# 自动修复可修复的 lint 问题
+npm run lint:fix
+```
+
+---
+
+## 数据库与迁移
+
+### 迁移机制
+
+迁移文件位于 `apps/backend/migrations/`，以 `NNNN_description.sql` 命名，按文件名字典序执行。
+
+迁移运行时特性：
+- **幂等**：已执行的文件记录在 `schema_migrations` 表，不会重复执行
+- **原子性**：每个 `.sql` 文件在一个事务中执行，任意语句失败则整体回滚
+- **并发安全**：获取数据库级别排他锁后执行，防止多实例竞争
+
+### 新增表结构变更
+
+**永远不要直接修改已有的迁移文件**，只需新增文件：
+
+```bash
+# 新建迁移文件，文件名以序号开头
+touch apps/backend/migrations/0003_add_users_table.sql
+```
+
 ```sql
-CREATE TABLE user_profile (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  bio TEXT
+-- apps/backend/migrations/0003_add_users_table.sql
+
+CREATE TABLE users (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 ```
-**它是如何执行的？**
-每次你触发 `make up` 或者 `make restart`，后端应用启动前的瞬间，就会**自动**触发 `bun src/db/migrate.ts`。
-- 它会在 `schema_migrations` 表里记录已执行文件。
-- 新增的 `.sql` 将被原子化事务 (Transaction) 保护执行，**如果你的某行 SQL 写错报错了，当前文件内的所有进度都会集体回滚**，绝不会产出脏数据。
+
+触发迁移：
+
+```bash
+# 在容器内执行迁移（推荐，环境与生产一致）
+make compose-migrate
+
+# 或在宿主机执行（需本地有 Bun 和 .env）
+make migrate
+```
+
+迁移在每次 `make up` / `make restart` 时也会自动触发。
+
+### 查看当前迁移状态
+
+```bash
+# 连接到 MySQL 容器
+docker compose --env-file .env exec mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" parrot
+
+# 查看已执行的迁移
+SELECT * FROM schema_migrations ORDER BY executed_at;
+```
 
 ---
 
-## 4. 构建与部署 (Deployment)
+## 数据库备份与恢复
 
-我们在底层完成了本地芯片和远端服务器双体系隔离打通。本地基于 Mac (ARM64)，远端基于 Linux (AMD64)。
+### 手动备份
 
-### 1. 发布到服务器
-确保你的仓库没有任何未提交的代码修改（最好处于一个稳定的状态）。
+```bash
+# 本地开发环境备份（保存到 backups/mysql/）
+make db-backup
+
+# 远端生产环境备份（在服务器创建快照）
+make remote-db-backup
+```
+
+备份文件命名格式：`parrot_20260101_030000.sql.gz`
+
+默认保留最近 7 天的备份（可通过 `BACKUP_RETENTION_DAYS` 调整）。
+
+### 自动定时备份
+
+将定时备份 cron job 安装到当前机器：
+
+```bash
+# 本地开发机（默认每天凌晨 3 点）
+make setup-backup-cron
+
+# 生产服务器
+make remote-setup-backup-cron
+```
+
+查看已安装的 cron job：
+
+```bash
+crontab -l
+```
+
+自定义备份时间（示例：每天凌晨 2:30）：
+
+```bash
+BACKUP_SCHEDULE="30 2 * * *" make setup-backup-cron
+```
+
+卸载 cron job：
+
+```bash
+(crontab -l | grep -vF '# parrot-db-backup') | crontab -
+```
+
+### 从备份恢复
+
+```bash
+# 本地恢复
+make db-restore BACKUP_FILE=backups/mysql/parrot_20260101_030000.sql.gz
+
+# 远端恢复（文件路径相对于服务器的 REMOTE_PATH）
+make remote-db-restore BACKUP_FILE=backups/mysql/parrot_20260101_030000.sql.gz
+```
+
+> **警告**：恢复操作会用备份内容**完全覆盖**当前数据库，操作前务必确认或先做一次新备份。
+
+### 数据卷说明
+
+MySQL 数据存储在 Docker 命名卷 `parrot_mysql-data` 中。
+
+| 操作 | 安全性 | 说明 |
+|------|--------|------|
+| `docker compose down` | ✅ 安全 | 仅停止容器，数据卷保留 |
+| `docker compose down -v` | ❌ **危险** | 同时删除数据卷，数据永久丢失 |
+| 换服务器迁移 | ⚠️ 需导出 | 代码目录之外，需先 `make remote-db-backup` |
+
+---
+
+## 构建与部署
+
+### 配置前置检查
+
+```bash
+# 确认 .env 中以下字段已正确填写：
+# ALIYUN_REGISTRY / IMAGE_NAMESPACE / ALIYUN_USERNAME / ALIYUN_PASSWORD
+# REMOTE_HOST（格式：user@host）/ REMOTE_PATH
+# VERSION（镜像 tag，如 1.0.0）
+```
+
+### 一键发布到生产
+
 ```bash
 make remote-deploy
 ```
-**这个流程发生了什么？**
-1. 构建前端生产级资源 (`make build`)。
-2. 构建远端可运行的 AMD64 后端 Docker 镜像，并推送至阿里云镜像仓库 (`make push`)。
-3. 通过 SSH 协议把 `.env` 和 `docker-compose.deploy.yml` 拷贝到目标云主机的 `deploy/parrot/` 目录 (`make remote-sync`)。
-4. 登录到远端服务器，拉取最新镜像，在不停机的情况下重启服务（使用 `--no-deps` 单独更新并热启动）。
 
-### 2. 远端日志与维护
-部署后如果有任何异常，可以直接查阅远端容器日志：
+该命令按顺序执行：
+
+1. **`make push`**：构建多架构（`linux/amd64`）后端和 Nginx Docker 镜像，推送到阿里云 ACR
+2. **`make remote-sync`**：通过 SSH 将 `.env`、`docker-compose.deploy.yml`、脚本文件同步到服务器
+3. 在服务器上：
+   - 拉取最新镜像
+   - 启动 MySQL（若未运行）
+   - 自动执行 SQL 迁移
+   - 滚动重启 backend + nginx（不重建镜像）
+   - 清理旧镜像
+4. **`make remote-verify`**：验证健康检查端点，失败则自动触发回滚
+
+### 发布特定版本
+
 ```bash
-make remote-logs
+VERSION=1.2.0 make remote-deploy
+```
+
+### 仅推镜像（不部署）
+
+```bash
+make push
+```
+
+### 仅同步配置文件
+
+```bash
+make remote-sync
 ```
 
 ---
 
-## 5. 项目维护与极速容灾 (Maintenance & Rollback)
+## 回滚
 
-项目的健壮性设计赋予了极速抢救的能力。
-
-### 回滚 (Rollback)
-如果刚运行完 `make remote-deploy` 发现生产线上新代码有严重 Bug，不需要重新本地构建编译。服务器上的 `Makefile` 保存了“上一次环境”，直接用你本地的一行命令即可将其平滑还原为上一秒存货态：
 ```bash
 make remote-rollback
 ```
 
-### 数据库持久化与安全避坑 (Data Voluming & Pitfalls)
+服务器上的 `.release.previous.env` 保存了上一次部署的版本信息，回滚命令从中读取版本号，拉取对应旧镜像，恢复运行状态，并自动验证健康检查。
 
-我们的系统使用 Docker **命名卷 (Named Volume)** 作为 MySQL 的底层存储。在 `docker-compose.yml` 中被标记为 `mysql-data`。
-
-1. **为什么叫 `mysql-data`？会跟别的项目冲突吗？**
-   在 Docker 的底层命名空间机制下，由于我们顶层申明了 `name: parrot`，这个卷真正在宿主机里创建时的名字叫作 **`parrot_mysql-data`**。它天然自带了项目名的前缀隔离，绝对不会和其他项目互相覆盖跑偏。这正是短名字优雅而不随意的体现。
-2. **⚠️ 极高危：删除了体积卷会导致永久丢失数据**
-   平时用 `docker compose down` 关停服务是安全的。但**绝对不能手滑加上 `-v` 参数**（即 `docker compose down -v`）。一旦执行，Docker 会毫不留情地连同 `parrot_mysql-data` 一起抹除，所有文章和用户数据会灰飞烟灭。
-3. **⚠️ 中危：服务器整体搬迁盲区**
-   由于你的数据根本不在代码文件夹内，而是被 Docker 引擎深度隐藏在 `/var/lib/docker/volumes/` 系统级底层目录下。因此如果你换服务器，仅仅把项目代码整个拷走，新服务器启动依旧会是一个“零数据”空壳。你必须使用如下的冷备功能来导出数据搬迁。
-
-### 数据库备份与恢复 (Database Backup & Restore)
-
-为了防御以上随时可能发生的灾难场景（手滑删除、换服务器等），我们内置了全量数据库快照工具：
-
-**主动备份数据：**
-在需要做大动作前，运行这个指令抓取当前生产库的全量冷备数据（无需登录进数据库敲长串的 `mysqldump` 指令）：
-```bash
-make remote-db-backup
-```
-数据库快照会**自动下载**并存放在目标服务器和你本地的 `backups/mysql/` 中。只要这个 `*.sql.gz` 文件捏在手里，就算服务器炸废了都可以原地秒复活。
-
-**如何紧急恢复或搬家还原？**
-（请准备好刚才那个 `xxxxx.sql.gz` 文件放在目录里）：
-```bash
-make remote-db-restore BACKUP_FILE=backups/mysql/你的快照文件名.sql.gz
-```
-运行后，当前环境的数据库将无缝覆盖回滚到你快照产生的那一刻。
+> 回滚**不会**回滚数据库迁移。如需同时回滚数据库，请先手动恢复备份（`make remote-db-restore`），再执行代码回滚。
 
 ---
 
-## 开发哲学 (Code Philosophy)
-1. **简单之美**：项目摒弃了重度框架组合（如 Next.js/Nest.js）。利用原生的 Web 标准解决复杂性。
-2. **错误前置**：Hono 提供了一个兜底的全局 `app.onError`。除非明确的业务逻辑错报，接口级别里应尽量免去冗长的 `try/catch` 泥潭，全部 throw 出去由网关统一处理为 500 标准 JSON 结构返回。
-3. **零运行耗损**：任何可以通过架构化解决的问题都不占用代码 CPU（例如把 `gzip` 丢给 Nginx，把基础依赖甩给外脑 CDN，把慢 SQL 转给引擎优化器）。
+## API 接口
+
+所有 API 请求经由 Nginx 代理到后端，路径前缀 `/api/`。
+
+| 方法 | 路径 | 描述 | 响应示例 |
+|------|------|------|----------|
+| GET | `/healthz` | 后端存活检查（含 DB 连通性） | `{"status":"ok","service":"backend","database":"connected"}` |
+| GET | `/api/health` | 服务健康状态 + 版本 | `{"status":"ok","database":"connected","version":"1.0.0"}` |
+| GET | `/api/v1/system/summary` | 应用信息 + 新闻统计 | 见下方示例 |
+| GET | `/api/v1/news` | 全部已发布新闻列表 | `{"items":[...]}` |
+| GET | `/api/v1/meta` | 端口元数据 | `{"appName":"...","ports":{...}}` |
+
+**`GET /api/v1/system/summary` 响应示例：**
+
+```json
+{
+  "appName": "Parrot",
+  "version": "latest",
+  "environment": "production",
+  "publishedNewsCount": 3,
+  "latestPublishedAt": "2026-03-22 08:30:00",
+  "services": [
+    "React 19 + Rsbuild",
+    "Hono + Bun",
+    "Bun.sql (MySQL)",
+    "Nginx + Docker Compose"
+  ]
+}
+```
+
+**`GET /api/v1/news` 响应示例：**
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "slug": "full-stack-foundation",
+      "title": "Full-stack foundation is ready",
+      "summary": "...",
+      "body": "...",
+      "publishedAt": "2026-03-22"
+    }
+  ]
+}
+```
+
+**错误响应格式（统一）：**
+
+```json
+// 404 - 路由不存在
+{ "status": "not_found", "message": "GET /api/v1/xxx not found" }
+
+// 500 - 服务器内部错误
+{ "status": "error", "message": "具体错误描述" }
+```
 
 ---
 
-## 秘钥与凭证管理 (Secret Management)
+## 环境变量参考
 
-整个项目的所有敏感配置（数据库访问密码等、生产服务器 SSH 到 Aliyun Registry 的密钥对等）统一定义在隐藏的 `.env` 中。
+复制 `.env.example` 为 `.env` 并按需修改。
 
-⚠️ **绝对禁止将任何 `.env` 文件提交到 Git 代码库记录中！** 
-这些文件已经在 `.gitignore` 里被屏蔽。将其推到公开或即便私有的代码库，都会导致高危的云安全事件。
+### 应用配置
 
-**那么，不能传代码库，万一本地电脑坏了丢失了怎么办？**
-为了防范密码和配置丢失风险，你必须借用**第三方安全外脑**来托管你的环境文件内容：
-1. **密码管理器 (首推)**：将 `.env` 里的文本全选复制，创建一个属于你个人的 `1Password` 或 `Bitwarden` 的机密笔记 (Secure Note)，同步在你的云端金库。这是最轻量、最防弹且永不丢失的做法。
-2. **云服务管理控制台**：如果团队规模稍大，应当把它们托付给专业的 `HashiCorp Vault` 或阿里云/AWS 的 `Secrets Manager` (凭据服务) 中。
-3. **CI/CD 保管**：如果是全自动化流水线开发，应当把各组变量拆分成一条条的 Key-Value，存放在代码托管平台的“GitHub Actions / GitLab Secret Settings”机密配置墙后面。
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `APP_NAME` | `Parrot` | 应用名称（出现在 API 响应中） |
+| `NODE_ENV` | `development` | 运行环境，生产时设为 `production` |
+| `VERSION` | `latest` | 镜像版本 tag，用于部署追踪 |
+
+### 端口配置
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `BACKEND_PORT` | `26031` | Hono 后端宿主机映射端口 |
+| `MYSQL_PORT` | `26032` | MySQL 宿主机映射端口 |
+| `NGINX_PORT` | `26033` | Nginx 网关宿主机映射端口（主入口） |
+
+### 数据库配置
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `DATABASE_HOST` | `127.0.0.1` | 本地直连时使用；容器内固定为 `mysql` |
+| `DATABASE_PORT` | `26032` | 本地直连端口 |
+| `MYSQL_DATABASE` | `parrot` | 数据库名 |
+| `MYSQL_USER` | `parrot` | 业务账号 |
+| `MYSQL_PASSWORD` | — | 业务账号密码 |
+| `MYSQL_ROOT_PASSWORD` | — | root 密码（备份 / 迁移使用） |
+
+### 备份配置
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `BACKUP_RETENTION_DAYS` | `7` | 保留最近 N 天的备份，超期自动删除（0 = 不删除） |
+| `BACKUP_SCHEDULE` | `0 3 * * *` | cron 表达式，用于 `make setup-backup-cron` |
+
+### 阿里云 ACR（部署时必填）
+
+| 变量 | 示例值 | 说明 |
+|------|--------|------|
+| `ALIYUN_REGISTRY` | `registry.cn-hangzhou.aliyuncs.com` | ACR 域名 |
+| `IMAGE_NAMESPACE` | `my-namespace` | 命名空间 |
+| `ALIYUN_USERNAME` | `my@example.com` | 登录账号 |
+| `ALIYUN_PASSWORD` | — | 登录密码（勿提交 Git） |
+
+### 远端部署（部署时必填）
+
+| 变量 | 示例值 | 说明 |
+|------|--------|------|
+| `REMOTE_HOST` | `root@1.2.3.4` | SSH 目标（需免密登录） |
+| `REMOTE_PATH` | `/root/app/parrot` | 服务器上的项目目录 |
+
+---
+
+## Make 命令速查
+
+```bash
+make help               # 查看所有可用命令
+```
+
+### 开发
+
+| 命令 | 说明 |
+|------|------|
+| `make up` | 构建并启动完整本地栈 |
+| `make down` | 停止本地栈（保留数据卷） |
+| `make restart` | 重启本地栈（不重建镜像） |
+| `make logs` | 实时查看所有服务日志 |
+| `make ps` | 查看服务运行状态 |
+| `make dev-backend` | 在宿主机直接运行后端（热重载） |
+
+### 数据库
+
+| 命令 | 说明 |
+|------|------|
+| `make migrate` | 在宿主机执行迁移（需本地 Bun） |
+| `make compose-migrate` | 在容器内执行迁移 |
+| `make db-backup` | 手动本地备份 |
+| `make db-restore BACKUP_FILE=...` | 从本地快照恢复 |
+| `make setup-backup-cron` | 安装本地定时备份 cron job |
+
+### 构建与代码质量
+
+| 命令 | 说明 |
+|------|------|
+| `make install` | 安装所有 workspace 依赖 |
+| `make build` | 构建前端 + 后端 |
+| `make frontend-build` | 仅构建前端静态资源 |
+| `make lint` | ESLint 检查 |
+| `make type-check` | TypeScript 类型检查 |
+
+### 部署（生产）
+
+| 命令 | 说明 |
+|------|------|
+| `make push` | 构建并推送 Docker 镜像到 ACR |
+| `make remote-deploy` | 一键完整部署（包含推镜像 + 同步 + 迁移） |
+| `make remote-rollback` | 回滚到上一次部署的版本 |
+| `make remote-verify` | 验证远端服务健康状态 |
+| `make remote-logs` | 实时查看远端服务日志 |
+| `make remote-db-backup` | 在服务器创建数据库快照 |
+| `make remote-db-restore BACKUP_FILE=...` | 从快照恢复服务器数据库 |
+| `make remote-setup-backup-cron` | 在服务器安装定时备份 cron job |
+
+---
+
+## 常见问题
+
+### `make up` 卡在 "Seeding multi-arch image..."
+
+首次运行需要从 Docker Hub 拉取基础镜像并推送到阿里云 ACR，网络较慢时耗时较长（10~30 分钟）。之后有缓存，速度会快很多。
+
+### 后端启动报 "Database connection failed"
+
+MySQL 启动比后端慢。后端内置了最多 20 次重试（每次间隔 2 秒），正常情况下会等待。如果始终失败：
+
+```bash
+# 查看 MySQL 日志
+make logs
+
+# 检查 .env 中的密码是否与容器匹配
+# 如果改过密码但容器已有旧数据卷，需要先删卷重建：
+docker compose --env-file .env down -v   # ⚠️ 会清空数据
+make up
+```
+
+### 迁移报错 "Table already exists"
+
+说明表已存在但 `schema_migrations` 没有记录（手动改过库或迁移记录丢失）。解决方式之一：
+
+```sql
+-- 手动标记为已执行
+INSERT INTO schema_migrations (name) VALUES ('0001_init.sql');
+```
+
+### Nginx 返回 502
+
+后端尚未就绪，等待几秒后刷新；或检查：
+
+```bash
+make ps       # 查看 backend 是否 healthy
+make logs     # 查看错误日志
+```
+
+### 前端改了代码但页面没有变化
+
+1. 确认 `watcher` 容器在运行：`make ps`
+2. 查看 watcher 日志：`docker compose --env-file .env logs -f watcher`
+3. 如果 watcher 退出，执行 `make restart`
+
+### 想修改 Nginx 端口
+
+在 `.env` 中修改 `NGINX_PORT`，然后：
+
+```bash
+make restart
+```
+
+---
+
+## 开发哲学
+
+1. **简单之美**：不引入 ORM、不用重型框架，原生 SQL 表达业务，原生 HTTP server 处理请求。复杂性在引入前就被消灭。
+
+2. **错误前置**：后端全局 `onError` 统一兜底，路由层不写冗长的 `try/catch`，直接 `throw`，由网关格式化成标准 JSON 返回。未匹配路由由 `notFound` 统一处理。
+
+3. **零运行耗损**：Gzip 交给 Nginx，基础依赖交给 CDN，慢 SQL 交给索引优化器，代码只关心业务逻辑。
+
+---
+
+## 密钥管理
+
+所有敏感配置（数据库密码、ACR 密钥、SSH 目标等）存放在 `.env` 文件中，该文件已被 `.gitignore` 屏蔽，**严禁提交到 Git**。
+
+`.env` 的备份方案（按推荐程度排序）：
+
+| 方案 | 适用场景 |
+|------|----------|
+| 1Password / Bitwarden Secure Note | 个人或小团队，最轻量 |
+| 阿里云 KMS / AWS Secrets Manager | 团队协作，合规要求 |
+| GitHub Actions / GitLab CI Secrets | 全自动化 CI/CD 流水线 |
