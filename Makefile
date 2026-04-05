@@ -270,6 +270,7 @@ remote-deploy: push remote-sync
 		&& printf 'VERSION=%s\n' '$(VERSION)' > $(REMOTE_RELEASE_ENV_FILE) \
 		&& echo '$(ALIYUN_PASSWORD)' | docker login $(ALIYUN_REGISTRY) -u '$(ALIYUN_USERNAME)' --password-stdin \
 		&& $(REMOTE_COMPOSE) pull \
+		&& $(REMOTE_COMPOSE) stop backend 2>/dev/null || true \
 		&& $(REMOTE_COMPOSE) up -d mysql \
 		&& $(REMOTE_COMPOSE) run --rm --no-deps backend bun run migrate \
 		&& $(REMOTE_COMPOSE) up -d --remove-orphans --no-build \

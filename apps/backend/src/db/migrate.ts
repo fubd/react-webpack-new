@@ -97,8 +97,6 @@ function splitSqlStatements(sql: string): string[] {
 }
 
 export const migrateDatabase = async () => {
-  await waitForDatabase();
-
   const [lockResult] = await db<LockRow[]>`SELECT GET_LOCK(${migrationLockName}, 60) AS acquired`;
 
   if (Number(lockResult?.acquired ?? 0) !== 1) {
@@ -181,7 +179,8 @@ export const migrateDatabase = async () => {
 };
 
 if (import.meta.path === Bun.main) {
-  migrateDatabase()
+  waitForDatabase()
+    .then(() => migrateDatabase())
     .then(() => {
       console.log('[backend] migrations completed');
     })

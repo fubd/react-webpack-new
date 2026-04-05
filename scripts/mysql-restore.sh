@@ -19,6 +19,17 @@ if [[ ! -f "${backup_file}" ]]; then
   exit 1
 fi
 
+if [[ -t 0 ]]; then
+  echo ""
+  echo "⚠  This will OVERWRITE the current database with: ${backup_file}"
+  echo -n "  Type 'yes' to continue: "
+  read -r confirm
+  if [[ "${confirm}" != "yes" ]]; then
+    echo "Aborted."
+    exit 0
+  fi
+fi
+
 compose_cmd=(docker compose)
 
 if [[ -n "${COMPOSE_FILE}" ]]; then

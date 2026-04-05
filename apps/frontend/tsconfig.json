@@ -7,11 +7,10 @@
       "esnext"
     ],
     "module": "esnext",
-    "moduleResolution": "node",
-    "baseUrl": "src",
+    "moduleResolution": "bundler",
     "paths": {
       "@/*": [
-        "*"
+        "./src/*"
       ]
     },
     "noEmit": true,

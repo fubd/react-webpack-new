@@ -42,7 +42,7 @@ if [[ -n "${EXTRA_ENV_FILE}" ]]; then
   extra_env_arg="EXTRA_ENV_FILE=${EXTRA_ENV_FILE} "
 fi
 
-CRON_CMD="${BACKUP_SCHEDULE} cd ${PROJECT_DIR} && ENV_FILE=${ENV_FILE} ${extra_env_arg}COMPOSE_FILE=${COMPOSE_FILE} BACKUP_DIR=${BACKUP_DIR} DATABASE_NAME=${DATABASE_NAME} BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS} bash scripts/mysql-backup.sh >> /tmp/${CRON_MARKER}.log 2>&1 # ${CRON_MARKER}"
+CRON_CMD="${BACKUP_SCHEDULE} cd ${PROJECT_DIR} && PATH=/usr/local/bin:/usr/bin:/bin BACKUP_DIR=${BACKUP_DIR} DATABASE_NAME=${DATABASE_NAME} BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS} bash scripts/mysql-backup.sh >> ${PROJECT_DIR}/backups/mysql/backup-cron.log 2>&1 # ${CRON_MARKER}"
 
 # Check for duplicate.
 if crontab -l 2>/dev/null | grep -qF "# ${CRON_MARKER}"; then

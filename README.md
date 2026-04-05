@@ -79,7 +79,7 @@ parrot/
 │   ├── mysql-backup.sh         # 手动/定时备份（支持保留期清理）
 │   ├── mysql-restore.sh        # 从快照恢复
 │   └── setup-backup-cron.sh    # 安装定时备份 cron job
-├── docker-compose.yml          # 本地开发栈（含 watcher 热构建）
+├── docker-compose.yml          # 本地开发栈
 ├── docker-compose.deploy.yml   # 生产部署栈
 ├── Makefile                    # 所有操作入口
 ├── .env.example                # 环境变量模板
@@ -95,7 +95,7 @@ parrot/
 | 工具 | 版本要求 | 说明 |
 |------|----------|------|
 | Docker Desktop | 最新版 | 包含 `docker compose` 和 `buildx` |
-| Node.js | ≥ 22 | 仅前端 watcher 容器使用；也可直接用宿主机 |
+| Node.js | ≥ 22 | 前端 watcher 进程使用；也可直接用宿主机 |
 | make | 系统自带 | macOS / Linux 均已内置 |
 | SSH 密钥 | — | 远端部署时需要免密登录目标服务器 |
 
@@ -128,15 +128,23 @@ make up
 
 ### 修改前端
 
-前端使用 `watcher` 容器监听文件变化，保存后自动重新构建：
+前端使用宿主机后台进程监听文件变化（Rspack 原生绑定与 Docker Alpine 不兼容，因此无法在容器内运行）。`make up` 和 `make restart` 会自动启动 watcher 进程：
 
 ```bash
-# 已通过 make up 启动栈后，直接编辑 apps/frontend/src/ 下的文件
-# 保存 → watcher 0.3s 内重新编译 dist/
+# watcher 已随 make up / make restart 自动启动，直接编辑 apps/frontend/src/ 下的文件
+# 保存 → watcher 自动重新编译到 dist/
 # 浏览器刷新 http://localhost:26033 即可看到效果
 ```
 
-无需重启任何容器，也无需额外命令。
+手动管理 watcher：
+
+```bash
+make start-watch    # 启动后台 watcher（PID 记录在 .watch.pid）
+make stop-watch     # 停止 watcher
+make watch          # 前台运行 watcher（可看到实时编译输出）
+```
+
+无需重启任何容器。
 
 ### 修改后端
 
@@ -435,6 +443,7 @@ make remote-rollback
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
+| `FRONTEND_PORT` | `26030` | 前端 Rsbuild dev server 宿主机端口 |
 | `BACKEND_PORT` | `26031` | Hono 后端宿主机映射端口 |
 | `MYSQL_PORT` | `26032` | MySQL 宿主机映射端口 |
 | `NGINX_PORT` | `26033` | Nginx 网关宿主机映射端口（主入口） |
@@ -485,12 +494,15 @@ make help               # 查看所有可用命令
 
 | 命令 | 说明 |
 |------|------|
-| `make up` | 构建并启动完整本地栈 |
-| `make down` | 停止本地栈（保留数据卷） |
-| `make restart` | 重启本地栈（不重建镜像） |
+| `make up` | 构建并启动完整本地栈 + 后台 watcher |
+| `make down` | 停止 watcher 和 Docker 栈 |
+| `make restart` | 重启 backend + nginx + watcher（不重建镜像） |
 | `make logs` | 实时查看所有服务日志 |
 | `make ps` | 查看服务运行状态 |
 | `make dev-backend` | 在宿主机直接运行后端（热重载） |
+| `make watch` | 前台运行前端 watcher |
+| `make start-watch` | 启动后台前端 watcher |
+| `make stop-watch` | 停止前端 watcher |
 
 ### 数据库
 
@@ -567,9 +579,9 @@ make logs     # 查看错误日志
 
 ### 前端改了代码但页面没有变化
 
-1. 确认 `watcher` 容器在运行：`make ps`
-2. 查看 watcher 日志：`docker compose --env-file .env logs -f watcher`
-3. 如果 watcher 退出，执行 `make restart`
+1. 确认 watcher 进程在运行：`cat .watch.pid && kill -0 $(cat .watch.pid) 2>/dev/null && echo "running" || echo "stopped"`
+2. 查看 watcher 日志：`cat .watch.log`
+3. 如果 watcher 未运行，执行 `make start-watch`
 
 ### 想修改 Nginx 端口
 

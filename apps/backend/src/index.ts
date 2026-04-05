@@ -129,7 +129,11 @@ app.get('/api/v1/meta', (context) => {
   });
 });
 
+let isShuttingDown = false;
+
 const shutdown = async (signal: string) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
   console.log(`[backend] received ${signal}, shutting down`);
   server.stop(true);
   await closeDatabase();
