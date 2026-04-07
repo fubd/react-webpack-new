@@ -20,6 +20,7 @@ Browser
 - [数据库与迁移](#数据库与迁移)
 - [数据库备份与恢复](#数据库备份与恢复)
 - [构建与部署](#构建与部署)
+- [CI/CD](#cicd)
 - [回滚](#回滚)
 - [API 接口](#api-接口)
 - [环境变量参考](#环境变量参考)
@@ -34,13 +35,14 @@ Browser
 
 | 层 | 技术 | 说明 |
 |---|---|---|
-| 前端 | React 19 + Rsbuild | Rspack 驱动，极速编译；核心包通过 CDN 加载 |
-| 后端 | Bun + Hono | 原生 HTTP server，零依赖 SQL 驱动（`Bun.sql`） |
+| 前端 | React 19 + Rsbuild | Rspack 驱动，极速编译；核心包通过 CDN 加载（classic runtime） |
+| 前端 | CSS Modules（`.module.less`） | 组件样式自动作用域隔离，避免全局污染 |
+| 后端 | Bun + Hono | 原生 HTTP server，零依赖 SQL 驱动（`Bun.sql`，内置连接池） |
 | 数据库 | MySQL 8.4 | 原生 SQL，无 ORM |
 | 网关 | Nginx 1.27 | Gzip 压缩 + 静态资源缓存 + API 反向代理 |
 | 编排 | Docker Compose + Makefile | 本地开发 & 生产部署统一入口 |
 | 镜像仓库 | 阿里云 ACR | 支持 `linux/amd64` 和 `arm64` 双架构 |
-| 语言 | TypeScript 5.9（strict） | 前后端统一，共享根目录 ESLint 配置 |
+| 语言 | TypeScript 5.9（strict） | 前后端统一 ESLint 配置 |
 
 ---
 
@@ -54,20 +56,21 @@ parrot/
 │   │   │   ├── index.ts        # 路由、中间件、启动入口
 │   │   │   ├── env.ts          # 环境变量验证
 │   │   │   └── db/
-│   │   │       ├── client.ts   # Bun.sql 连接 + 健康等待
+│   │   │       ├── client.ts   # Bun.sql 连接池 + 健康等待
 │   │   │       └── migrate.ts  # 迁移运行时（事务 + 锁 + 幂等）
 │   │   ├── migrations/         # SQL 迁移文件（按序号前缀命名）
-│   │   ├── Dockerfile
+│   │   ├── Dockerfile          # 包含 wget + HEALTHCHECK
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   └── frontend/               # React SPA
 │       ├── src/
 │       │   ├── App.tsx         # 路由 + Ant Design 主题
-│       │   ├── layouts/        # MainLayout（Header / Nav / Footer）
-│       │   ├── pages/          # home / about / news
-│       │   ├── routes/         # 路由配置与懒加载
+│       │   ├── components/     # ErrorBoundary（捕获懒加载 chunk 失败）
+│       │   ├── layouts/        # MainLayout（Header / Nav / Footer）+ CSS Modules
+│       │   ├── pages/          # home / about / news（CSS Modules）
+│       │   ├── routes/         # 路由配置与懒加载 + 404 兜底
 │       │   └── theme/          # Ant Design token 配置
-│       ├── public/index.html
+│       ├── public/index.html   # 含 meta/OG 标签、favicon
 │       ├── rsbuild.config.mjs
 │       ├── package.json
 │       └── tsconfig.json
@@ -76,11 +79,12 @@ parrot/
 │       ├── default.conf        # 路由规则、Gzip、缓存策略
 │       └── Dockerfile          # 多阶段构建：Node 编译前端 → Nginx 运行时
 ├── scripts/
-│   ├── mysql-backup.sh         # 手动/定时备份（支持保留期清理）
-│   ├── mysql-restore.sh        # 从快照恢复
+│   ├── mysql-backup.sh         # 手动/定时备份（磁盘检查 + gzip 校验 + 保留期清理）
+│   ├── mysql-restore.sh        # 从快照恢复（自动预恢复备份）
 │   └── setup-backup-cron.sh    # 安装定时备份 cron job
 ├── docker-compose.yml          # 本地开发栈
 ├── docker-compose.deploy.yml   # 生产部署栈
+├── .github/workflows/ci.yml   # GitHub Actions CI（type-check + lint + build）
 ├── Makefile                    # 所有操作入口
 ├── .env.example                # 环境变量模板
 └── tsconfig.base.json          # 共享 TypeScript 配置
@@ -251,6 +255,10 @@ make remote-db-backup
 
 备份文件命名格式：`parrot_20260101_030000.sql.gz`
 
+备份脚本内置安全措施：
+- **磁盘空间检查**：备份前检测可用空间（至少 10 MB），不足则中止
+- **gzip 完整性校验**：备份完成后验证 `.gz` 文件完整性，损坏则自动删除并报错
+
 默认保留最近 7 天的备份（可通过 `BACKUP_RETENTION_DAYS` 调整）。
 
 ### 自动定时备份
@@ -284,6 +292,8 @@ BACKUP_SCHEDULE="30 2 * * *" make setup-backup-cron
 ```
 
 ### 从备份恢复
+
+恢复脚本会在覆盖数据库前**自动创建一份安全备份**（`pre_restore_*.sql.gz`），以防误操作后可追溯。
 
 ```bash
 # 本地恢复
@@ -353,6 +363,18 @@ make push
 ```bash
 make remote-sync
 ```
+
+---
+
+## CI/CD
+
+项目内置 GitHub Actions 工作流（`.github/workflows/ci.yml`），在每次 push 和 PR 时自动执行：
+
+| 步骤 | 命令 | 说明 |
+|------|------|------|
+| 类型检查 | `npm run type-check` | 前后端 `tsc --noEmit` |
+| 代码规范 | `npm run lint` | ESLint 检查前后端 |
+| 构建 | `npm run build` | 前端 + 后端完整构建 |
 
 ---
 
@@ -597,9 +619,11 @@ make restart
 
 1. **简单之美**：不引入 ORM、不用重型框架，原生 SQL 表达业务，原生 HTTP server 处理请求。复杂性在引入前就被消灭。
 
-2. **错误前置**：后端全局 `onError` 统一兜底，路由层不写冗长的 `try/catch`，直接 `throw`，由网关格式化成标准 JSON 返回。未匹配路由由 `notFound` 统一处理。
+2. **错误前置**：后端全局 `onError` 统一兜底，路由层不写冗长的 `try/catch`，直接 `throw`，由网关格式化成标准 JSON 返回。前端 `ErrorBoundary` 捕获懒加载 chunk 失败，防止白屏。未匹配路由由 `notFound` 统一处理。
 
-3. **零运行耗损**：Gzip 交给 Nginx，基础依赖交给 CDN，慢 SQL 交给索引优化器，代码只关心业务逻辑。
+3. **零运行耗损**：Gzip 交给 Nginx，基础依赖（React / React DOM）交给 CDN，慢 SQL 交给索引优化器，代码只关心业务逻辑。
+
+4. **样式隔离**：CSS Modules（`.module.less`）自动生成哈希类名，组件样式零冲突，告别全局污染。
 
 ---
 

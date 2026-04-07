@@ -214,7 +214,7 @@ compose-build: guard-stack-env ensure-base-images
 
 compose-migrate: guard-stack-env
 	@$(LOCAL_COMPOSE) stop backend 2>/dev/null || true
-	$(LOCAL_COMPOSE) up -d mysql
+	$(LOCAL_COMPOSE) up -d --wait mysql
 	$(LOCAL_COMPOSE) run --rm --no-deps backend bun run migrate
 
 up: frontend-build compose-build compose-migrate
@@ -271,7 +271,7 @@ remote-deploy: push remote-sync
 		&& echo '$(ALIYUN_PASSWORD)' | docker login $(ALIYUN_REGISTRY) -u '$(ALIYUN_USERNAME)' --password-stdin \
 		&& $(REMOTE_COMPOSE) pull \
 		&& $(REMOTE_COMPOSE) stop backend 2>/dev/null || true \
-		&& $(REMOTE_COMPOSE) up -d mysql \
+		&& $(REMOTE_COMPOSE) up -d --wait mysql \
 		&& $(REMOTE_COMPOSE) run --rm --no-deps backend bun run migrate \
 		&& $(REMOTE_COMPOSE) up -d --remove-orphans --no-build \
 		&& docker image prune -f"
@@ -279,7 +279,10 @@ remote-deploy: push remote-sync
 
 remote-verify: guard-stack-env
 	ssh $(REMOTE_HOST) "cd $(REMOTE_PATH) \
-		&& if [ ! -f $(REMOTE_RELEASE_ENV_FILE) ]; then printf 'VERSION=%s\n' '$(VERSION)' > $(REMOTE_RELEASE_ENV_FILE); fi \
+		&& if [ ! -f $(REMOTE_RELEASE_ENV_FILE) ]; then \
+			echo 'No .release.env found. Run remote-deploy first.' >&2; \
+			exit 1; \
+
 		&& $(REMOTE_COMPOSE) ps \
 		&& curl -fsS http://127.0.0.1:$(BACKEND_PORT)/healthz >/dev/null \
 		&& curl -fsS http://127.0.0.1:$(NGINX_PORT)/healthz >/dev/null \
@@ -288,7 +291,10 @@ remote-verify: guard-stack-env
 
 remote-rollback: guard-stack-env
 	ssh $(REMOTE_HOST) "cd $(REMOTE_PATH) \
-		&& test -f $(REMOTE_PREVIOUS_RELEASE_ENV_FILE) \
+		&& if [ ! -f $(REMOTE_PREVIOUS_RELEASE_ENV_FILE) ]; then \
+			echo 'No previous version to rollback to. Run remote-deploy first.' >&2; \
+			exit 1; \
+
 		&& cp $(REMOTE_PREVIOUS_RELEASE_ENV_FILE) $(REMOTE_RELEASE_ENV_FILE) \
 		&& echo '$(ALIYUN_PASSWORD)' | docker login $(ALIYUN_REGISTRY) -u '$(ALIYUN_USERNAME)' --password-stdin \
 		&& $(REMOTE_COMPOSE) pull backend nginx \

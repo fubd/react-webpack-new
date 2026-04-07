@@ -3,8 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "build": "cross-env NODE_ENV=production rsbuild build",
-    "watch": "cross-env NODE_ENV=production rsbuild build --watch",
+    "build": "rsbuild build",
+    "watch": "rsbuild build --watch",
     "type-check": "tsc --project tsconfig.json --noEmit",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix"
@@ -22,8 +22,6 @@
     "@rsbuild/plugin-react": "^1.4.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "cross-env": "^10.1.0",
-    "dotenv": "^16.6.1",
     "less": "^4.4.2",
     "typescript": "^5.9.3"
   },

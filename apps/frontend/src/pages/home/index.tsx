@@ -1,7 +1,7 @@
 import React from 'react';
 import {Button, Space, Tag, Typography} from 'antd';
 import {Link} from 'react-router-dom';
-import './index.less';
+import styles from './index.module.less';
 
 const {Paragraph, Title} = Typography;
 
@@ -50,12 +50,12 @@ const Home: React.FC = () => {
   }, []);
 
   return (
-    <div className="homeWrapper">
-      <section className="hero">
-        <div className="heroCopy">
+    <div className={styles.homeWrapper}>
+      <section className={styles.hero}>
+        <div className={styles.heroCopy}>
           <Tag color="cyan" bordered={false}>Full-stack refactor branch</Tag>
-          <h1 className="heroTitle">HELLO WORLD</h1>
-          <p className="heroSubtitle">
+          <h1 className={styles.heroTitle}>HELLO WORLD</h1>
+          <p className={styles.heroSubtitle}>
             React stays on the surface, Hono serves the API, MySQL stores the data,
             and nginx routes traffic without taking on SSL responsibility inside the container boundary.
           </p>
@@ -69,56 +69,56 @@ const Home: React.FC = () => {
           </Space>
         </div>
 
-        <div className="systemPanel">
-          <div className="systemPanelHeader">
-            <span className="systemPanelEyebrow">System summary</span>
-            <span className={`systemPill${summary ? ' systemPillLive' : ''}`}>
+        <div className={styles.systemPanel}>
+          <div className={styles.systemPanelHeader}>
+            <span className={styles.systemPanelEyebrow}>System summary</span>
+            <span className={`${styles.systemPill}${summary ? ` ${styles.systemPillLive}` : ''}`}>
               {summary ? 'API online' : 'Waiting for API'}
             </span>
           </div>
 
-          <div className="systemStats">
-            <article className="statCard">
-              <span className="statLabel">App name</span>
-              <strong className="statValue">{summary?.appName ?? 'Parrot'}</strong>
+          <div className={styles.systemStats}>
+            <article className={styles.statCard}>
+              <span className={styles.statLabel}>App name</span>
+              <strong className={styles.statValue}>{summary?.appName ?? 'Parrot'}</strong>
             </article>
-            <article className="statCard">
-              <span className="statLabel">Published news</span>
-              <strong className="statValue">{summary?.publishedNewsCount ?? 0}</strong>
+            <article className={styles.statCard}>
+              <span className={styles.statLabel}>Published news</span>
+              <strong className={styles.statValue}>{summary?.publishedNewsCount ?? 0}</strong>
             </article>
-            <article className="statCard">
-              <span className="statLabel">Last content sync</span>
-              <strong className="statValue">{summary?.latestPublishedAt ?? 'Pending'}</strong>
+            <article className={styles.statCard}>
+              <span className={styles.statLabel}>Last content sync</span>
+              <strong className={styles.statValue}>{summary?.latestPublishedAt ?? 'Pending'}</strong>
             </article>
-            <article className="statCard">
-              <span className="statLabel">Runtime</span>
-              <strong className="statValue">{summary?.environment ?? 'development'}</strong>
+            <article className={styles.statCard}>
+              <span className={styles.statLabel}>Runtime</span>
+              <strong className={styles.statValue}>{summary?.environment ?? 'development'}</strong>
             </article>
           </div>
 
-          <div className="serviceList">
+          <div className={styles.serviceList}>
             {(summary?.services ?? [
               'React 19 + Rsbuild',
               'Hono + TypeScript',
               'Drizzle raw SQL + MySQL',
               'Nginx + Docker Compose',
             ]).map((service) => (
-              <span key={service} className="serviceTag">{service}</span>
+              <span key={service} className={styles.serviceTag}>{service}</span>
             ))}
           </div>
 
           {errorMessage ? (
-            <p className="statusMessage statusMessageError">{errorMessage}</p>
+            <p className={`${styles.statusMessage} ${styles.statusMessageError}`}>{errorMessage}</p>
           ) : (
-            <p className="statusMessage">
+            <p className={styles.statusMessage}>
               The page reads real data from the new backend, so you can immediately verify the full stack is connected.
             </p>
           )}
         </div>
       </section>
 
-      <section className="grid">
-        <article className="card">
+      <section className={styles.grid}>
+        <article className={styles.card}>
           <Title level={4}>Raw SQL stays visible</Title>
           <Paragraph>
             The backend keeps database behavior close to the code you read every day,
@@ -126,7 +126,7 @@ const Home: React.FC = () => {
           </Paragraph>
         </article>
 
-        <article className="card">
+        <article className={styles.card}>
           <Title level={4}>Docker is production-oriented</Title>
           <Paragraph>
             Frontend, backend, MySQL, and gateway nginx each have a clear role,
@@ -134,7 +134,7 @@ const Home: React.FC = () => {
           </Paragraph>
         </article>
 
-        <article className="card">
+        <article className={styles.card}>
           <Title level={4}>Operations live in Makefile</Title>
           <Paragraph>
             Build, type-check, migrate, run, push, and remote deploy commands are centralized

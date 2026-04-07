@@ -36,6 +36,13 @@ tmp_file="${output_file}.tmp"
 
 mkdir -p "${output_dir}"
 
+# Disk space check: require at least 10 MB available.
+available_mb=$(df --output=avail --block-size=M "${output_dir}" 2>/dev/null | tail -1)
+if [[ -n "${available_mb}" ]] && [[ "${available_mb}" -lt 10 ]]; then
+  echo "Insufficient disk space in ${output_dir} (available: ${available_mb}MB, need at least 10MB)" >&2
+  exit 1
+fi
+
 cleanup() {
   rm -f "${tmp_file}"
 }
@@ -58,6 +65,13 @@ trap cleanup EXIT
 
 mv "${tmp_file}" "${output_file}"
 trap - EXIT
+
+# Verify gzip integrity
+if ! gzip -t "${output_file}" 2>/dev/null; then
+  echo "ERROR: gzip integrity check failed for ${output_file}" >&2
+  rm -f "${output_file}"
+  exit 1
+fi
 
 echo "Created MySQL backup: ${output_file}"
 

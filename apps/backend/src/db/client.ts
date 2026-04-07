@@ -2,7 +2,11 @@ import {env} from '../env.js';
 
 const url = `mysql://${encodeURIComponent(env.databaseUser)}:${encodeURIComponent(env.databasePassword)}@${env.databaseHost}:${env.databasePort}/${env.databaseName}`;
 
-export const db = new Bun.SQL(url);
+export const db = new Bun.SQL(url, {
+  max: 10,
+  idleTimeout: 30_000,
+  connectionTimeout: 5_000,
+});
 
 export const pingDatabase = async () => {
   await db`SELECT 1 AS ok`;

@@ -35,7 +35,7 @@ const pageRoutes = [
     element: (
       <div style={{padding: '80px 0', textAlign: 'center'}}>
         <h1 style={{fontSize: 64, margin: 0}}>404</h1>
-        <p style={{color: '#999', margin: '8px 0 0'}}>Page not found</p>
+        <p style={{color: '#64748b', margin: '8px 0 0'}}>Page not found</p>
       </div>
     ),
   },

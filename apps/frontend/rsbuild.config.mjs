@@ -17,7 +17,11 @@ const CDN = {
 
 export default defineConfig({
   plugins: [
-    pluginReact(),
+    pluginReact({
+      swcReactOptions: {
+        runtime: 'classic',
+      },
+    }),
     pluginLess(),
   ],
   source: {
