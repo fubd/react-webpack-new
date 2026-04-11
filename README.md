@@ -36,6 +36,7 @@ Browser
 | 层 | 技术 | 说明 |
 |---|---|---|
 | 前端 | React 19 + Rsbuild | Rspack 驱动，极速编译；核心包通过 CDN 加载（classic runtime） |
+| 前端 | Ant Design 6 + React Router 7 | UI 组件库 v6 + 客户端路由（懒加载 + 404 兜底） |
 | 前端 | CSS Modules（`.module.less`） | 组件样式自动作用域隔离，避免全局污染 |
 | 后端 | Bun + Hono | 原生 HTTP server，零依赖 SQL 驱动（`Bun.sql`，内置连接池） |
 | 数据库 | MySQL 8.4 | 原生 SQL，无 ORM |
@@ -69,6 +70,8 @@ parrot/
 │       │   ├── layouts/        # MainLayout（Header / Nav / Footer）+ CSS Modules
 │       │   ├── pages/          # home / about / news（CSS Modules）
 │       │   ├── routes/         # 路由配置与懒加载 + 404 兜底
+│       │   ├── styles/         # 全局样式（global.less）
+│       │   ├── assets/         # 静态资源
 │       │   └── theme/          # Ant Design token 配置
 │       ├── public/index.html   # 含 meta/OG 标签、favicon
 │       ├── rsbuild.config.mjs
@@ -82,8 +85,8 @@ parrot/
 │   ├── mysql-backup.sh         # 手动/定时备份（磁盘检查 + gzip 校验 + 保留期清理）
 │   ├── mysql-restore.sh        # 从快照恢复（自动预恢复备份）
 │   └── setup-backup-cron.sh    # 安装定时备份 cron job
-├── docker-compose.yml          # 本地开发栈
-├── docker-compose.deploy.yml   # 生产部署栈
+├── docker-compose.yml          # 本地开发栈（含 build context + 挂载）
+├── docker-compose.deploy.yml   # 生产部署栈（仅引用预构建镜像）
 ├── .github/workflows/ci.yml   # GitHub Actions CI（type-check + lint + build）
 ├── Makefile                    # 所有操作入口
 ├── .env.example                # 环境变量模板
@@ -192,6 +195,11 @@ npm run lint:fix
 ### 迁移机制
 
 迁移文件位于 `apps/backend/migrations/`，以 `NNNN_description.sql` 命名，按文件名字典序执行。
+
+当前迁移：
+- `0001_init.sql` — 创建 `news_posts` 表并插入初始种子数据
+- `0002_add_indexes.sql` — 添加复合索引 `(is_published, published_at DESC)`
+- `0003_drop_redundant_index.sql` — 移除被复合索引覆盖的单列索引
 
 迁移运行时特性：
 - **幂等**：已执行的文件记录在 `schema_migrations` 表，不会重复执行
@@ -368,13 +376,13 @@ make remote-sync
 
 ## CI/CD
 
-项目内置 GitHub Actions 工作流（`.github/workflows/ci.yml`），在每次 push 和 PR 时自动执行：
+项目内置 GitHub Actions 工作流（`.github/workflows/ci.yml`），在每次 push 到 `main` 和 PR 时自动执行：
 
 | 步骤 | 命令 | 说明 |
 |------|------|------|
-| 类型检查 | `npm run type-check` | 前后端 `tsc --noEmit` |
-| 代码规范 | `npm run lint` | ESLint 检查前后端 |
-| 构建 | `npm run build` | 前端 + 后端完整构建 |
+| 类型检查 | `make type-check` | 前后端 `tsc --noEmit` |
+| 代码规范 | `make lint` | ESLint 检查前后端 |
+| 构建 | `make frontend-build` | 前端静态资源构建 |
 
 ---
 
@@ -392,14 +400,14 @@ make remote-rollback
 
 ## API 接口
 
-所有 API 请求经由 Nginx 代理到后端，路径前缀 `/api/`。
+所有 API 请求经由 Nginx 代理到后端，路径前缀 `/api/`。后端启用了 CORS（`origin: *`）和请求日志中间件。
 
 | 方法 | 路径 | 描述 | 响应示例 |
 |------|------|------|----------|
 | GET | `/healthz` | 后端存活检查（含 DB 连通性） | `{"status":"ok","service":"backend","database":"connected"}` |
 | GET | `/api/health` | 服务健康状态 + 版本 | `{"status":"ok","database":"connected","version":"1.0.0"}` |
 | GET | `/api/v1/system/summary` | 应用信息 + 新闻统计 | 见下方示例 |
-| GET | `/api/v1/news` | 全部已发布新闻列表 | `{"items":[...]}` |
+| GET | `/api/v1/news` | 全部已发布新闻列表（按发布时间倒序） | `{"items":[...]}` |
 | GET | `/api/v1/meta` | 端口元数据 | `{"appName":"...","ports":{...}}` |
 
 **`GET /api/v1/system/summary` 响应示例：**
@@ -619,7 +627,7 @@ make restart
 
 1. **简单之美**：不引入 ORM、不用重型框架，原生 SQL 表达业务，原生 HTTP server 处理请求。复杂性在引入前就被消灭。
 
-2. **错误前置**：后端全局 `onError` 统一兜底，路由层不写冗长的 `try/catch`，直接 `throw`，由网关格式化成标准 JSON 返回。前端 `ErrorBoundary` 捕获懒加载 chunk 失败，防止白屏。未匹配路由由 `notFound` 统一处理。
+2. **错误前置**：后端全局 `onError` 统一兜底，路由层不写冗长的 `try/catch`，直接 `throw`，由网关格式化成标准 JSON 返回。前端 `ErrorBoundary` 捕获懒加载 chunk 失败，防止白屏。未匹配路由由 `notFound` 统一处理。后端收到 `SIGINT`/`SIGTERM` 时优雅关闭连接池。
 
 3. **零运行耗损**：Gzip 交给 Nginx，基础依赖（React / React DOM）交给 CDN，慢 SQL 交给索引优化器，代码只关心业务逻辑。
 
