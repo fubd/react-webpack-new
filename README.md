@@ -84,7 +84,7 @@ parrot/
 ├── scripts/
 │   ├── mysql-backup.sh         # 手动/定时备份（磁盘检查 + gzip 校验 + 保留期清理）
 │   ├── mysql-restore.sh        # 从快照恢复（自动预恢复备份）
-│   └── setup-backup-cron.sh    # 安装定时备份 cron job
+│   └── setup-backup-cron.sh    # 安装/卸载定时备份 cron job
 ├── docker-compose.yml          # 本地开发栈（含 build context + 挂载）
 ├── docker-compose.deploy.yml   # 生产部署栈（仅引用预构建镜像）
 ├── .github/workflows/ci.yml   # GitHub Actions CI（type-check + lint + build）
@@ -115,7 +115,7 @@ git clone <repo-url> && cd parrot
 # 2. 复制环境变量模板
 cp .env.example .env
 # 编辑 .env，至少填写 MYSQL_PASSWORD、MYSQL_ROOT_PASSWORD
-# 以及 ALIYUN_* 相关字段（部署时才需要）
+# 以及 ALIYUN_* 相关字段（本地构建底层镜像与部署都会用到）
 
 # 3. 一键启动
 make up
@@ -271,6 +271,8 @@ make remote-db-backup
 
 ### 自动定时备份
 
+定时备份通过宿主机 `crontab` 调用项目自带 shell 脚本，不要求宿主机安装 `bun`。
+
 将定时备份 cron job 安装到当前机器：
 
 ```bash
@@ -293,10 +295,10 @@ crontab -l
 BACKUP_SCHEDULE="30 2 * * *" make setup-backup-cron
 ```
 
-卸载 cron job：
+卸载定时任务：
 
 ```bash
-(crontab -l | grep -vF '# parrot-db-backup') | crontab -
+bash scripts/setup-backup-cron.sh --remove
 ```
 
 ### 从备份恢复
@@ -565,15 +567,15 @@ make help               # 查看所有可用命令
 | `make remote-logs` | 实时查看远端服务日志 |
 | `make remote-db-backup` | 在服务器创建数据库快照 |
 | `make remote-db-restore BACKUP_FILE=...` | 从快照恢复服务器数据库 |
-| `make remote-setup-backup-cron` | 在服务器安装定时备份 cron job |
+| `make remote-setup-backup-cron` | 在服务器安装定时备份任务 |
 
 ---
 
 ## 常见问题
 
-### `make up` 卡在 "Seeding multi-arch image..."
+### `make up` / `make push` / `make remote-deploy` 卡在 "Seeding multi-arch image..."
 
-首次运行需要从 Docker Hub 拉取基础镜像并推送到阿里云 ACR，网络较慢时耗时较长（10~30 分钟）。之后有缓存，速度会快很多。
+项目会先把官方基础镜像同步到阿里云 ACR，网络较慢时耗时较长（10~30 分钟）。这是为了确保本地和生产都基于同一套 ACR 底层镜像。
 
 ### 后端启动报 "Database connection failed"
 

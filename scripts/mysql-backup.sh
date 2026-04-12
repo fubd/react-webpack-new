@@ -37,7 +37,13 @@ tmp_file="${output_file}.tmp"
 mkdir -p "${output_dir}"
 
 # Disk space check: require at least 10 MB available.
-available_mb=$(df --output=avail --block-size=M "${output_dir}" 2>/dev/null | tail -1)
+available_kb="$(df -Pk "${output_dir}" 2>/dev/null | awk 'NR==2 {print $4}')"
+if [[ "${available_kb}" =~ ^[0-9]+$ ]]; then
+  available_mb=$((available_kb / 1024))
+else
+  available_mb=""
+fi
+
 if [[ -n "${available_mb}" ]] && [[ "${available_mb}" -lt 10 ]]; then
   echo "Insufficient disk space in ${output_dir} (available: ${available_mb}MB, need at least 10MB)" >&2
   exit 1

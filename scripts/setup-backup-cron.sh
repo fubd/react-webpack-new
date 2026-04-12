@@ -1,21 +1,4 @@
 #!/usr/bin/env bash
-# Install a periodic backup cron job for the Parrot MySQL database.
-#
-# Environment variables (all optional, values below are defaults):
-#   PROJECT_DIR             path to the project root (auto-detected)
-#   BACKUP_SCHEDULE         cron expression          (0 3 * * *)
-#   BACKUP_RETENTION_DAYS   days of backups to keep  (7)
-#   COMPOSE_FILE            compose file to use      (docker-compose.yml)
-#   ENV_FILE                env file to load         (.env)
-#   EXTRA_ENV_FILE          additional env file      ("")
-#
-# Usage (local dev):
-#   bash scripts/setup-backup-cron.sh
-#
-# Usage (production – called via "make remote-setup-backup-cron"):
-#   COMPOSE_FILE=docker-compose.deploy.yml \
-#   EXTRA_ENV_FILE=.release.env \
-#   bash scripts/setup-backup-cron.sh
 
 set -euo pipefail
 
@@ -25,41 +8,62 @@ BACKUP_RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 ENV_FILE="${ENV_FILE:-.env}"
 EXTRA_ENV_FILE="${EXTRA_ENV_FILE:-}"
+MYSQL_SERVICE="${MYSQL_SERVICE:-mysql}"
+BACKUP_DIR="${PROJECT_DIR}/backups/mysql"
+LOG_FILE="${BACKUP_DIR}/backup-cron.log"
+CRON_MARKER="parrot-db-backup"
 
-# Load database name from .env so the cron command is concrete.
+quote_for_shell() {
+  printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+build_assignment() {
+  printf "%s=%s " "$1" "$(quote_for_shell "$2")"
+}
+
 if [[ -f "${PROJECT_DIR}/${ENV_FILE}" ]]; then
-  # shellcheck disable=SC1090
-  DATABASE_NAME="$(grep -E '^MYSQL_DATABASE=' "${PROJECT_DIR}/${ENV_FILE}" | cut -d= -f2 | tr -d '[:space:]')"
+  DATABASE_NAME="$(grep -E '^MYSQL_DATABASE=' "${PROJECT_DIR}/${ENV_FILE}" | cut -d= -f2- | tr -d '[:space:]')"
 fi
 DATABASE_NAME="${DATABASE_NAME:-parrot}"
 
-BACKUP_DIR="${PROJECT_DIR}/backups/mysql"
+mkdir -p "${BACKUP_DIR}"
 
-CRON_MARKER="parrot-db-backup"
+if [[ "${1:-}" == "--remove" ]]; then
+  if ! crontab -l 2>/dev/null | grep -qF "# ${CRON_MARKER}"; then
+    echo "[setup-backup-cron] No installed cron job matched ${CRON_MARKER}."
+    exit 0
+  fi
 
-extra_env_arg=""
-if [[ -n "${EXTRA_ENV_FILE}" ]]; then
-  extra_env_arg="EXTRA_ENV_FILE=${EXTRA_ENV_FILE} "
+  filtered_crontab="$(crontab -l 2>/dev/null | grep -vF "# ${CRON_MARKER}" || true)"
+  printf '%s\n' "${filtered_crontab}" | crontab -
+  echo "[setup-backup-cron] Removed cron job ${CRON_MARKER}."
+  exit 0
 fi
 
-CRON_CMD="${BACKUP_SCHEDULE} cd ${PROJECT_DIR} && PATH=/usr/local/bin:/usr/bin:/bin BACKUP_DIR=${BACKUP_DIR} DATABASE_NAME=${DATABASE_NAME} BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS} bash scripts/mysql-backup.sh >> ${PROJECT_DIR}/backups/mysql/backup-cron.log 2>&1 # ${CRON_MARKER}"
+extra_env_part=""
+if [[ -n "${EXTRA_ENV_FILE}" ]]; then
+  extra_env_part="$(build_assignment EXTRA_ENV_FILE "${EXTRA_ENV_FILE}")"
+fi
 
-# Check for duplicate.
+CRON_CMD="${BACKUP_SCHEDULE} cd $(quote_for_shell "${PROJECT_DIR}") && PATH=/usr/local/bin:/usr/bin:/bin $(build_assignment BACKUP_DIR "${BACKUP_DIR}")$(build_assignment DATABASE_NAME "${DATABASE_NAME}")$(build_assignment BACKUP_RETENTION_DAYS "${BACKUP_RETENTION_DAYS}")$(build_assignment COMPOSE_FILE "${COMPOSE_FILE}")$(build_assignment ENV_FILE "${ENV_FILE}")$(build_assignment MYSQL_SERVICE "${MYSQL_SERVICE}")${extra_env_part}bash scripts/mysql-backup.sh >> $(quote_for_shell "${LOG_FILE}") 2>&1 # ${CRON_MARKER}"
+
 if crontab -l 2>/dev/null | grep -qF "# ${CRON_MARKER}"; then
   echo "[setup-backup-cron] Cron job already installed:"
   crontab -l 2>/dev/null | grep "# ${CRON_MARKER}"
   echo ""
   echo "To update, remove the existing entry first:"
-  echo "  (crontab -l | grep -vF '# ${CRON_MARKER}') | crontab -"
+  echo "  bash scripts/setup-backup-cron.sh --remove"
   exit 0
 fi
 
-# Install.
 (crontab -l 2>/dev/null; echo "${CRON_CMD}") | crontab -
 
 echo "[setup-backup-cron] Installed successfully."
 echo "  Schedule : ${BACKUP_SCHEDULE}"
-echo "  Retention: ${BACKUP_RETENTION_DAYS} days"
-echo "  Log      : /tmp/${CRON_MARKER}.log"
+echo "  Log      : ${LOG_FILE}"
+echo "  Compose  : ${COMPOSE_FILE}"
+if [[ -n "${EXTRA_ENV_FILE}" ]]; then
+  echo "  Extra env: ${EXTRA_ENV_FILE}"
+fi
 echo ""
 echo "Verify with: crontab -l"

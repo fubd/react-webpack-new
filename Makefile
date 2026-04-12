@@ -282,7 +282,7 @@ remote-verify: guard-stack-env
 		&& if [ ! -f $(REMOTE_RELEASE_ENV_FILE) ]; then \
 			echo 'No .release.env found. Run remote-deploy first.' >&2; \
 			exit 1; \
-
+		fi \
 		&& $(REMOTE_COMPOSE) ps \
 		&& curl -fsS http://127.0.0.1:$(BACKEND_PORT)/healthz >/dev/null \
 		&& curl -fsS http://127.0.0.1:$(NGINX_PORT)/healthz >/dev/null \
@@ -294,7 +294,7 @@ remote-rollback: guard-stack-env
 		&& if [ ! -f $(REMOTE_PREVIOUS_RELEASE_ENV_FILE) ]; then \
 			echo 'No previous version to rollback to. Run remote-deploy first.' >&2; \
 			exit 1; \
-
+		fi \
 		&& cp $(REMOTE_PREVIOUS_RELEASE_ENV_FILE) $(REMOTE_RELEASE_ENV_FILE) \
 		&& echo '$(ALIYUN_PASSWORD)' | docker login $(ALIYUN_REGISTRY) -u '$(ALIYUN_USERNAME)' --password-stdin \
 		&& $(REMOTE_COMPOSE) pull backend nginx \
