@@ -62,6 +62,7 @@ export default defineConfig({
         'react-dom':        'ReactDOM',
         'react-dom/client': 'ReactDOMClient',
       },
+      ...(process.env.DOCKER_DEV === '1' ? {watchOptions: {poll: 1000}} : {}),
     },
   },
 });

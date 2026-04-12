@@ -20,8 +20,6 @@ Browser
 - [数据库与迁移](#数据库与迁移)
 - [数据库备份与恢复](#数据库备份与恢复)
 - [构建与部署](#构建与部署)
-- [CI/CD](#cicd)
-- [回滚](#回滚)
 - [API 接口](#api-接口)
 - [环境变量参考](#环境变量参考)
 - [Make 命令速查](#make-命令速查)
@@ -41,7 +39,7 @@ Browser
 | 后端 | Bun + Hono | 原生 HTTP server，零依赖 SQL 驱动（`Bun.sql`，内置连接池） |
 | 数据库 | MySQL 8.4 | 原生 SQL，无 ORM |
 | 网关 | Nginx 1.27 | Gzip 压缩 + 静态资源缓存 + API 反向代理 |
-| 编排 | Docker Compose + Makefile | 本地开发 & 生产部署统一入口 |
+| 编排 | Docker Compose + Makefile | 本地开发 & 生产部署统一入口；宿主机无需 Node.js |
 | 镜像仓库 | 阿里云 ACR | 支持 `linux/amd64` 和 `arm64` 双架构 |
 | 语言 | TypeScript 5.9（strict） | 前后端统一 ESLint 配置 |
 
@@ -77,17 +75,18 @@ parrot/
 │       ├── rsbuild.config.mjs
 │       ├── package.json
 │       └── tsconfig.json
+├── docs/
+│   └── DEVOPS.md               # 数据库与运维完整指南
 ├── infra/
 │   └── nginx/
 │       ├── default.conf        # 路由规则、Gzip、缓存策略
-│       └── Dockerfile          # 多阶段构建：Node 编译前端 → Nginx 运行时
+│       └── Dockerfile          # 直接 COPY 预构建前端产物到 Nginx 运行时
 ├── scripts/
 │   ├── mysql-backup.sh         # 手动/定时备份（磁盘检查 + gzip 校验 + 保留期清理）
 │   ├── mysql-restore.sh        # 从快照恢复（自动预恢复备份）
 │   └── setup-backup-cron.sh    # 安装/卸载定时备份 cron job
-├── docker-compose.yml          # 本地开发栈（含 build context + 挂载）
+├── docker-compose.yml          # 本地开发栈（含 dev 构建容器 + 挂载）
 ├── docker-compose.deploy.yml   # 生产部署栈（仅引用预构建镜像）
-├── .github/workflows/ci.yml   # GitHub Actions CI（type-check + lint + build）
 ├── Makefile                    # 所有操作入口
 ├── .env.example                # 环境变量模板
 └── tsconfig.base.json          # 共享 TypeScript 配置
@@ -102,9 +101,10 @@ parrot/
 | 工具 | 版本要求 | 说明 |
 |------|----------|------|
 | Docker Desktop | 最新版 | 包含 `docker compose` 和 `buildx` |
-| Node.js | ≥ 22 | 前端 watcher 进程使用；也可直接用宿主机 |
 | make | 系统自带 | macOS / Linux 均已内置 |
 | SSH 密钥 | — | 远端部署时需要免密登录目标服务器 |
+
+> 宿主机无需安装 Node.js 或 Bun，所有构建和代码检查均在 Docker 容器内完成。
 
 ### 第一次启动
 
@@ -122,10 +122,12 @@ make up
 ```
 
 `make up` 会依次完成：
-1. 构建前端静态资源到 `apps/frontend/dist/`
-2. 检查并同步阿里云 ACR 基础镜像（首次较慢）
-3. 按健康检查顺序启动 `mysql → backend → nginx`
-4. 自动执行 SQL 迁移
+1. 在 Docker 容器内安装 Bun 依赖
+2. 构建前端静态资源到 `apps/frontend/dist/`
+3. 检查并同步阿里云 ACR 基础镜像（首次较慢）
+4. 按健康检查顺序启动 `mysql → backend → nginx`
+5. 自动执行 SQL 迁移
+6. 启动前端 watcher 容器
 
 启动后访问：**http://localhost:26033**
 
@@ -135,18 +137,18 @@ make up
 
 ### 修改前端
 
-前端使用宿主机后台进程监听文件变化（Rspack 原生绑定与 Docker Alpine 不兼容，因此无法在容器内运行）。`make up` 和 `make restart` 会自动启动 watcher 进程：
+前端 watcher 在 Docker 容器内以轮询模式运行（因为 macOS Docker 不转发 inotify 事件）。`make up` 和 `make restart` 会自动启动 watcher 容器：
 
 ```bash
 # watcher 已随 make up / make restart 自动启动，直接编辑 apps/frontend/src/ 下的文件
-# 保存 → watcher 自动重新编译到 dist/
+# 保存 → watcher 自动重新编译到 dist/（轮询间隔 1 秒）
 # 浏览器刷新 http://localhost:26033 即可看到效果
 ```
 
 手动管理 watcher：
 
 ```bash
-make start-watch    # 启动后台 watcher（PID 记录在 .watch.pid）
+make start-watch    # 启动后台 watcher（Docker 容器 parrot-watch）
 make stop-watch     # 停止 watcher
 make watch          # 前台运行 watcher（可看到实时编译输出）
 ```
@@ -165,27 +167,24 @@ make restart
 
 ### 不使用 Docker 开发后端
 
-如果只想在宿主机跑后端（需要本地装 Bun ≥ 1 且 MySQL 已在运行）：
+如果想在宿主机跑后端并获得热重载（需要本地安装 Bun ≥ 1 且 MySQL 已在运行）：
 
 ```bash
-# 安装依赖
-npm install
-
 # 运行迁移
-make migrate
+make compose-migrate
 
-# 启动带热重载的后端（监听文件变化自动重启）
-make dev-backend
+# 启动带热重载的后端
+bun --hot apps/backend/src/index.ts
 ```
 
 ### 代码检查与类型校验
 
+所有命令均在 Docker 容器内执行，宿主机无需安装 Node.js 或 Bun：
+
 ```bash
 make lint          # ESLint 检查（前后端）
 make type-check    # tsc --noEmit（前后端）
-
-# 自动修复可修复的 lint 问题
-npm run lint:fix
+make install       # 安装 / 更新依赖（bun install）
 ```
 
 ---
@@ -211,12 +210,12 @@ npm run lint:fix
 **永远不要直接修改已有的迁移文件**，只需新增文件：
 
 ```bash
-# 新建迁移文件，文件名以序号开头
-touch apps/backend/migrations/0003_add_users_table.sql
+# 新建迁移文件（自动编号）
+make create-migration NAME=add_users_table
 ```
 
 ```sql
--- apps/backend/migrations/0003_add_users_table.sql
+-- 0004_add_users_table
 
 CREATE TABLE users (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -231,7 +230,7 @@ CREATE TABLE users (
 # 在容器内执行迁移（推荐，环境与生产一致）
 make compose-migrate
 
-# 或在宿主机执行（需本地有 Bun 和 .env）
+# make migrate 是 compose-migrate 的别名
 make migrate
 ```
 
@@ -346,7 +345,7 @@ make remote-deploy
 
 该命令按顺序执行：
 
-1. **`make push`**：构建多架构（`linux/amd64`）后端和 Nginx Docker 镜像，推送到阿里云 ACR
+1. **`make push`**：先本地构建前端静态资源，再构建后端和 Nginx Docker 镜像，推送到阿里云 ACR（Nginx 镜像仅 COPY 预构建产物，无需在 Docker 内安装依赖）
 2. **`make remote-sync`**：通过 SSH 将 `.env`、`docker-compose.deploy.yml`、脚本文件同步到服务器
 3. 在服务器上：
    - 拉取最新镜像
@@ -376,18 +375,6 @@ make remote-sync
 
 ---
 
-## CI/CD
-
-项目内置 GitHub Actions 工作流（`.github/workflows/ci.yml`），在每次 push 到 `main` 和 PR 时自动执行：
-
-| 步骤 | 命令 | 说明 |
-|------|------|------|
-| 类型检查 | `make type-check` | 前后端 `tsc --noEmit` |
-| 代码规范 | `make lint` | ESLint 检查前后端 |
-| 构建 | `make frontend-build` | 前端静态资源构建 |
-
----
-
 ## 回滚
 
 ```bash
@@ -402,15 +389,15 @@ make remote-rollback
 
 ## API 接口
 
-所有 API 请求经由 Nginx 代理到后端，路径前缀 `/api/`。后端启用了 CORS（`origin: *`）和请求日志中间件。
+所有业务 API（`/api/*`）统一使用 POST 方法。后端启用了 CORS（`origin: *`）和请求日志中间件。
 
 | 方法 | 路径 | 描述 | 响应示例 |
 |------|------|------|----------|
-| GET | `/healthz` | 后端存活检查（含 DB 连通性） | `{"status":"ok","service":"backend","database":"connected"}` |
-| GET | `/api/health` | 服务健康状态 + 版本 | `{"status":"ok","database":"connected","version":"1.0.0"}` |
-| GET | `/api/v1/system/summary` | 应用信息 + 新闻统计 | 见下方示例 |
-| GET | `/api/v1/news` | 全部已发布新闻列表（按发布时间倒序） | `{"items":[...]}` |
-| GET | `/api/v1/meta` | 端口元数据 | `{"appName":"...","ports":{...}}` |
+| GET | `/healthz` | 后端存活检查（含 DB 连通性），供 Docker/nginx 健康检查使用 | `{"status":"ok","service":"backend","database":"connected"}` |
+| POST | `/api/health` | 服务健康状态 + 版本 | `{"status":"ok","database":"connected","version":"1.0.0"}` |
+| POST | `/api/v1/system/summary` | 应用信息 + 新闻统计 | 见下方示例 |
+| POST | `/api/v1/news` | 全部已发布新闻列表（按发布时间倒序） | `{"items":[...]}` |
+| POST | `/api/v1/meta` | 端口元数据 | `{"appName":"...","ports":{...}}` |
 
 **`GET /api/v1/system/summary` 响应示例：**
 
@@ -475,7 +462,7 @@ make remote-rollback
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `FRONTEND_PORT` | `26030` | 前端 Rsbuild dev server 宿主机端口 |
+| `FRONTEND_PORT` | `26030` | （保留，前端不使用独立 dev server） |
 | `BACKEND_PORT` | `26031` | Hono 后端宿主机映射端口 |
 | `MYSQL_PORT` | `26032` | MySQL 宿主机映射端口 |
 | `NGINX_PORT` | `26033` | Nginx 网关宿主机映射端口（主入口） |
@@ -531,7 +518,7 @@ make help               # 查看所有可用命令
 | `make restart` | 重启 backend + nginx + watcher（不重建镜像） |
 | `make logs` | 实时查看所有服务日志 |
 | `make ps` | 查看服务运行状态 |
-| `make dev-backend` | 在宿主机直接运行后端（热重载） |
+| `make dev-backend` | 在 Docker 中启动后端（重建容器） |
 | `make watch` | 前台运行前端 watcher |
 | `make start-watch` | 启动后台前端 watcher |
 | `make stop-watch` | 停止前端 watcher |
@@ -540,7 +527,7 @@ make help               # 查看所有可用命令
 
 | 命令 | 说明 |
 |------|------|
-| `make migrate` | 在宿主机执行迁移（需本地 Bun） |
+| `make migrate` | 执行迁移（等同于 compose-migrate） |
 | `make compose-migrate` | 在容器内执行迁移 |
 | `make db-backup` | 手动本地备份 |
 | `make db-restore BACKUP_FILE=...` | 从本地快照恢复 |
@@ -611,8 +598,8 @@ make logs     # 查看错误日志
 
 ### 前端改了代码但页面没有变化
 
-1. 确认 watcher 进程在运行：`cat .watch.pid && kill -0 $(cat .watch.pid) 2>/dev/null && echo "running" || echo "stopped"`
-2. 查看 watcher 日志：`cat .watch.log`
+1. 确认 watcher 容器在运行：`docker ps --filter "name=parrot-watch"`
+2. 查看 watcher 日志：`docker logs parrot-watch`
 3. 如果 watcher 未运行，执行 `make start-watch`
 
 ### 想修改 Nginx 端口

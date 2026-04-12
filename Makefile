@@ -11,18 +11,14 @@ BACKUP_RETENTION_DAYS ?= 7
 BACKUP_SCHEDULE ?= 0 3 * * *
 REMOTE_RELEASE_ENV_FILE ?= .release.env
 REMOTE_PREVIOUS_RELEASE_ENV_FILE ?= .release.previous.env
-NPM_REGISTRY ?= https://registry.npmmirror.com
-NPM_FETCH_RETRIES ?= 5
-NPM_FETCH_RETRY_FACTOR ?= 2
-NPM_FETCH_RETRY_MINTIMEOUT ?= 20000
-NPM_FETCH_RETRY_MAXTIMEOUT ?= 120000
+PKG_REGISTRY ?= https://registry.npmmirror.com
 BUILD_RETRY_COUNT ?= 3
 BUILD_RETRY_DELAY ?= 5
 PUSH_BUILD_CACHE ?= 0
-WATCH_PID_FILE := .watch.pid
-WATCH_LOG_FILE := .watch.log
 
 LOCAL_COMPOSE := $(COMPOSE) --env-file $(STACK_ENV_FILE) -f $(LOCAL_COMPOSE_FILE)
+DEV_RUN = $(LOCAL_COMPOSE) run --rm dev
+WATCH_CONTAINER := parrot-watch
 REMOTE_COMPOSE := docker compose --env-file .env --env-file $(REMOTE_RELEASE_ENV_FILE) -f $(DEPLOY_COMPOSE_FILE)
 
 ifneq (,$(wildcard $(STACK_ENV_FILE)))
@@ -31,7 +27,6 @@ export
 endif
 
 IMAGE_NAMESPACE ?= $(ALIYUN_USERNAME)
-BASE_NODE_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-node:22-alpine
 BASE_BUN_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-bun:1-alpine
 BASE_NGINX_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-nginx:1.27-alpine
 BASE_MYSQL_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-mysql:8.4.4
@@ -60,16 +55,16 @@ help:
 	@printf "  %-26s %s\n" "frontend-build" "Build frontend assets for nginx to serve"
 	@printf "  %-26s %s\n" "type-check" "Run TypeScript checks for both apps"
 	@printf "  %-26s %s\n" "lint" "Run ESLint for both apps"
-	@printf "  %-26s %s\n" "dev-backend" "Start the Hono backend on BACKEND_PORT"
-	@printf "  %-26s %s\n" "migrate" "Run backend SQL migrations locally"
+	@printf "  %-26s %s\n" "dev-backend" "Start the backend in Docker (recreates container)"
+	@printf "  %-26s %s\n" "migrate" "Run backend SQL migrations (via compose-migrate)"
 	@printf "  %-26s %s\n" "create-migration" "Create a numbered migration file (NAME=required)"
 	@printf "  %-26s %s\n" "up" "Build images, migrate DB, start stack + watcher"
 	@printf "  %-26s %s\n" "down" "Stop watcher and docker compose stack"
 	@printf "  %-26s %s\n" "restart" "Restart stack + watcher (no rebuild)"
 	@printf "  %-26s %s\n" "logs" "Tail compose logs"
 	@printf "  %-26s %s\n" "ps" "Show compose service status"
-	@printf "  %-26s %s\n" "watch" "Start frontend watcher on host (foreground)"
-	@printf "  %-26s %s\n" "start-watch" "Start frontend watcher on host (background)"
+	@printf "  %-26s %s\n" "watch" "Start frontend watcher (foreground)"
+	@printf "  %-26s %s\n" "start-watch" "Start frontend watcher (background Docker container)"
 	@printf "  %-26s %s\n" "stop-watch" "Stop frontend watcher"
 	@printf "  %-26s %s\n" "db-backup" "Create a compressed MySQL backup under $(BACKUP_DIR)"
 	@printf "  %-26s %s\n" "db-restore" "Restore MySQL from BACKUP_FILE=/path/to/dump.sql.gz"
@@ -90,25 +85,24 @@ guard-stack-env:
 	@test -f $(STACK_ENV_FILE) || (echo "Missing $(STACK_ENV_FILE). Copy .env.example to $(STACK_ENV_FILE) and fill it first." && exit 1)
 
 install:
-	npm install
+	$(DEV_RUN) bun install
 
 build:
-	npm run build
+	$(DEV_RUN) bun run build
 
 frontend-build:
-	npm run build:frontend
+	$(DEV_RUN) bun run build:frontend
 
 type-check:
-	npm run type-check
+	$(DEV_RUN) bun run type-check
 
 lint:
-	npm run lint
+	$(DEV_RUN) bun run lint
 
 dev-backend:
-	npm run dev:backend
+	@$(LOCAL_COMPOSE) up -d --force-recreate backend
 
-migrate:
-	npm run migrate
+migrate: compose-migrate
 
 create-migration:
 ifndef NAME
@@ -122,27 +116,22 @@ endif
 	echo "Created: $$file"
 
 # ── frontend watcher ────────────────────────────────────────────
-# Managed as a background host process (PID tracked in .watch.pid).
-# Rspack uses platform-specific native bindings, so it cannot run
-# inside a Docker Alpine container with macOS-host-mounted node_modules.
+# Runs inside the Docker dev container with polling-based file
+# watching (DOCKER_DEV=1 enables rspack watchOptions.poll).
 
 watch:
-	npm run watch --workspace @parrot/frontend
+	$(DEV_RUN) bun run --filter @parrot/frontend watch
 
 start-watch:
-	@if [ -f $(WATCH_PID_FILE) ] && kill -0 $$(cat $(WATCH_PID_FILE)) 2>/dev/null; then \
-		echo "Watcher already running (PID $$(cat $(WATCH_PID_FILE)))"; \
+	@if docker ps -q --filter "name=$(WATCH_CONTAINER)" | grep -q .; then \
+		echo "Watcher already running"; \
 	else \
-		nohup npm run watch --workspace @parrot/frontend > $(WATCH_LOG_FILE) 2>&1 & echo $$! > $(WATCH_PID_FILE); \
-		echo "Watcher started (PID $$(cat $(WATCH_PID_FILE)), log: $(WATCH_LOG_FILE))"; \
+		$(LOCAL_COMPOSE) run -d --name $(WATCH_CONTAINER) --no-deps dev bun run --filter @parrot/frontend watch; \
+		echo "Watcher started in container '$(WATCH_CONTAINER)'"; \
 	fi
 
 stop-watch:
-	@if [ -f $(WATCH_PID_FILE) ]; then \
-		kill $$(cat $(WATCH_PID_FILE)) 2>/dev/null || true; \
-		rm -f $(WATCH_PID_FILE); \
-		echo "Watcher stopped"; \
-	fi
+	@docker stop $(WATCH_CONTAINER) 2>/dev/null && docker rm $(WATCH_CONTAINER) 2>/dev/null && echo "Watcher stopped" || echo "Watcher not running"
 
 # ── compose lifecycle ───────────────────────────────────────────
 
@@ -200,14 +189,12 @@ acr-login:
 	@echo "$(ALIYUN_PASSWORD)" | docker login $(ALIYUN_REGISTRY) -u "$(ALIYUN_USERNAME)" --password-stdin
 
 seed-base-images: guard-stack-env acr-login
-	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_NODE_IMAGE) docker.io/library/node:22-alpine
 	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_BUN_IMAGE) docker.io/oven/bun:1-alpine
 	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_NGINX_IMAGE) docker.io/library/nginx:1.27-alpine
 	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_MYSQL_IMAGE) docker.io/library/mysql:8.4.4
 
 ensure-base-images: guard-stack-env acr-login
 	@for image in \
-		"$(BASE_NODE_IMAGE)|docker.io/library/node:22-alpine" \
 		"$(BASE_BUN_IMAGE)|docker.io/oven/bun:1-alpine" \
 		"$(BASE_NGINX_IMAGE)|docker.io/library/nginx:1.27-alpine" \
 		"$(BASE_MYSQL_IMAGE)|docker.io/library/mysql:8.4.4"; do \
@@ -222,23 +209,24 @@ ensure-base-images: guard-stack-env acr-login
 	done
 
 compose-build: guard-stack-env ensure-base-images
-	$(LOCAL_COMPOSE) build
+	$(LOCAL_COMPOSE) build --build-arg BUN_CONFIG_REGISTRY=$(PKG_REGISTRY)
 
 compose-migrate: guard-stack-env
 	@$(LOCAL_COMPOSE) stop backend 2>/dev/null || true
 	$(LOCAL_COMPOSE) up -d --wait mysql
 	$(LOCAL_COMPOSE) run --rm --no-deps backend bun run migrate
 
-up: frontend-build compose-build compose-migrate
+up: install frontend-build compose-build compose-migrate
 	$(LOCAL_COMPOSE) up -d --remove-orphans backend nginx
 	@$(MAKE) start-watch
 
-push: guard-stack-env acr-login ensure-base-images
+push: guard-stack-env acr-login ensure-base-images frontend-build
 	@attempt=1; \
 	while true; do \
 		docker buildx build --platform $(BUILD_PLATFORMS) --push \
 			$(BACKEND_CACHE_ARGS) \
 			--build-arg BASE_BUN_IMAGE=$(BASE_BUN_IMAGE) \
+			--build-arg BUN_CONFIG_REGISTRY=$(PKG_REGISTRY) \
 			-t $(BACKEND_IMAGE) \
 			-f apps/backend/Dockerfile . && break; \
 		status=$$?; \
@@ -251,13 +239,7 @@ push: guard-stack-env acr-login ensure-base-images
 	while true; do \
 		docker buildx build --platform $(BUILD_PLATFORMS) --push \
 			$(NGINX_CACHE_ARGS) \
-			--build-arg BASE_NODE_IMAGE=$(BASE_NODE_IMAGE) \
 			--build-arg BASE_NGINX_IMAGE=$(BASE_NGINX_IMAGE) \
-			--build-arg NPM_REGISTRY=$(NPM_REGISTRY) \
-			--build-arg NPM_FETCH_RETRIES=$(NPM_FETCH_RETRIES) \
-			--build-arg NPM_FETCH_RETRY_FACTOR=$(NPM_FETCH_RETRY_FACTOR) \
-			--build-arg NPM_FETCH_RETRY_MINTIMEOUT=$(NPM_FETCH_RETRY_MINTIMEOUT) \
-			--build-arg NPM_FETCH_RETRY_MAXTIMEOUT=$(NPM_FETCH_RETRY_MAXTIMEOUT) \
 			-t $(NGINX_IMAGE) \
 			-f infra/nginx/Dockerfile . && break; \
 		status=$$?; \
@@ -299,7 +281,7 @@ remote-verify: guard-stack-env
 		&& curl -fsS http://127.0.0.1:$(BACKEND_PORT)/healthz >/dev/null \
 		&& curl -fsS http://127.0.0.1:$(NGINX_PORT)/healthz >/dev/null \
 		&& curl -fsS http://127.0.0.1:$(NGINX_PORT)/ >/dev/null \
-		&& curl -fsS http://127.0.0.1:$(NGINX_PORT)/api/v1/system/summary >/dev/null"
+		&& curl -fsS -X POST http://127.0.0.1:$(NGINX_PORT)/api/v1/system/summary >/dev/null"
 
 remote-rollback: guard-stack-env
 	ssh $(REMOTE_HOST) "cd $(REMOTE_PATH) \

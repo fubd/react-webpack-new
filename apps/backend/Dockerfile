@@ -1,7 +1,11 @@
 ARG BASE_BUN_IMAGE=oven/bun:1-alpine
+ARG BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
 
 FROM ${BASE_BUN_IMAGE} AS runner
 WORKDIR /app
+
+ARG BUN_CONFIG_REGISTRY
+ENV BUN_CONFIG_REGISTRY=${BUN_CONFIG_REGISTRY}
 
 RUN apk add --no-cache wget
 

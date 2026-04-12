@@ -57,7 +57,7 @@ app.get('/healthz', async (context) => {
   });
 });
 
-app.get('/api/health', async (context) => {
+app.post('/api/health', async (context) => {
   await db`SELECT 1 AS ok`;
   return context.json({
     status: 'ok',
@@ -66,7 +66,7 @@ app.get('/api/health', async (context) => {
   });
 });
 
-app.get('/api/v1/system/summary', async (context) => {
+app.post('/api/v1/system/summary', async (context) => {
   const [summary] = await db<SummaryRow[]>`
     SELECT
       COUNT(*) AS publishedNewsCount,
@@ -90,7 +90,7 @@ app.get('/api/v1/system/summary', async (context) => {
   });
 });
 
-app.get('/api/v1/news', async (context) => {
+app.post('/api/v1/news', async (context) => {
   const rows = await db<NewsRow[]>`
     SELECT
       id,
@@ -116,7 +116,7 @@ app.get('/api/v1/news', async (context) => {
   });
 });
 
-app.get('/api/v1/meta', (context) => {
+app.post('/api/v1/meta', (context) => {
   return context.json({
     appName: env.appName,
     version: env.version,

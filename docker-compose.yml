@@ -23,7 +23,6 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      NODE_OPTIONS: --max-old-space-size=256
     ports:
       - "${BACKEND_PORT:-26031}:26031"
     depends_on:
@@ -104,6 +103,17 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  dev:
+    image: oven/bun:1-alpine
+    working_dir: /app
+    environment:
+      BUN_CONFIG_REGISTRY: ${PKG_REGISTRY:-https://registry.npmmirror.com}
+      DOCKER_DEV: "1"
+    volumes:
+      - .:/app
+    networks:
+      - parrot
 
 volumes:
   mysql-data:

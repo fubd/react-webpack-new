@@ -23,7 +23,7 @@ const Home: React.FC = () => {
 
     const loadSummary = async () => {
       try {
-        const response = await fetch('/api/v1/system/summary');
+        const response = await fetch('/api/v1/system/summary', {method: 'POST'});
 
         if (!response.ok) {
           throw new Error('Failed to load the system summary.');
