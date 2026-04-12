@@ -62,6 +62,8 @@ make db-restore BACKUP_FILE=backups/mysql/parrot_20260101_030000.sql.gz
 - `docker-compose.deploy.yml` — Production: same services minus dev container and build contexts. Nginx image just copies pre-built frontend assets (no bun needed in nginx image). Frontend is built natively before `docker buildx`, avoiding slow cross-platform installs.
 - `dev` service: `DOCKER_DEV=1` env var enables rspack polling (`watchOptions.poll: 1000`) for file watching inside Docker on macOS.
 
+**Backend dev hot reload:** The backend container runs with `bun --watch` and mounts `apps/backend/src/` and `apps/backend/migrations/` as volumes. On Linux (CI/CD, remote servers), file changes trigger automatic process restart. On macOS Docker, VirtioFS does not propagate file system events to inotify, so `--watch` is inactive — use `make restart` instead.
+
 **Base images** are synced to Aliyun ACR via `make ensure-base-images`. Production builds target `linux/amd64`.
 
 ## Key Conventions

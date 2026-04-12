@@ -10,6 +10,7 @@ services:
         BASE_BUN_IMAGE: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-bun:1-alpine
     restart: unless-stopped
     init: true
+    command: ["bun", "--watch", "./src/index.ts"]
     environment:
       APP_NAME: ${APP_NAME}
       VERSION: ${VERSION}
@@ -28,6 +29,9 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+    volumes:
+      - ./apps/backend/src:/app/src
+      - ./apps/backend/migrations:/app/migrations
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:26031/healthz >/dev/null || exit 1"]
       interval: 5s

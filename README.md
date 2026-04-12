@@ -157,7 +157,9 @@ make watch          # 前台运行 watcher（可看到实时编译输出）
 
 ### 修改后端
 
-后端代码不支持热重载，改完后执行：
+后端容器已配置 `bun --watch` + 源码卷挂载，文件变更时自动重启进程。在 Linux 环境（CI/CD、远程服务器）下直接生效。
+
+macOS Docker 存在已知限制：VirtioFS 不传递宿主机文件事件到容器内的 inotify，因此 `--watch` 无法感知宿主机编辑。改完后执行：
 
 ```bash
 make restart

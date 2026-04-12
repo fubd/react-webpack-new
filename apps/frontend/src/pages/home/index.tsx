@@ -1,11 +1,12 @@
 import React from 'react';
 import {Button, Space, Tag, Typography} from 'antd';
 import {Link} from 'react-router-dom';
+import {request} from '../../utils/request';
 import styles from './index.module.less';
 
 const {Paragraph, Title} = Typography;
 
-type SummaryResponse = {
+type SummaryData = {
   appName: string;
   version: string;
   environment: string;
@@ -15,30 +16,15 @@ type SummaryResponse = {
 };
 
 const Home: React.FC = () => {
-  const [summary, setSummary] = React.useState<SummaryResponse | null>(null);
-  const [errorMessage, setErrorMessage] = React.useState('');
+  const [summary, setSummary] = React.useState<SummaryData | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
 
     const loadSummary = async () => {
-      try {
-        const response = await fetch('/api/v1/system/summary', {method: 'POST'});
-
-        if (!response.ok) {
-          throw new Error('Failed to load the system summary.');
-        }
-
-        const nextSummary = await response.json() as SummaryResponse;
-
-        if (!cancelled) {
-          setSummary(nextSummary);
-          setErrorMessage('');
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : 'Unknown request error');
-        }
+      const result = await request<SummaryData>('/api/v1/system/summary');
+      if (!cancelled && result.success) {
+        setSummary(result.data!);
       }
     };
 
@@ -107,13 +93,9 @@ const Home: React.FC = () => {
             ))}
           </div>
 
-          {errorMessage ? (
-            <p className={`${styles.statusMessage} ${styles.statusMessageError}`}>{errorMessage}</p>
-          ) : (
-            <p className={styles.statusMessage}>
-              The page reads real data from the new backend, so you can immediately verify the full stack is connected.
-            </p>
-          )}
+          <p className={styles.statusMessage}>
+            The page reads real data from the new backend, so you can immediately verify the full stack is connected.
+          </p>
         </div>
       </section>
 

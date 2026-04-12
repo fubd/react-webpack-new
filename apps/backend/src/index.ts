@@ -29,7 +29,7 @@ app.onError((err, context) => {
   console.error(`[backend] ❌ ${context.req.method} ${context.req.path} →`, err);
   return context.json(
     {
-      status: 'error',
+      success: false,
       message: err instanceof Error ? err.message : 'Internal Server Error',
     },
     status,
@@ -39,7 +39,7 @@ app.onError((err, context) => {
 app.notFound((context) => {
   return context.json(
     {
-      status: 'not_found',
+      success: false,
       message: `${context.req.method} ${context.req.path} not found`,
     },
     404,
@@ -60,9 +60,11 @@ app.get('/healthz', async (context) => {
 app.post('/api/health', async (context) => {
   await db`SELECT 1 AS ok`;
   return context.json({
-    status: 'ok',
-    database: 'connected',
-    version: env.version,
+    success: true,
+    data: {
+      database: 'connected',
+      version: env.version,
+    },
   });
 });
 
@@ -76,17 +78,20 @@ app.post('/api/v1/system/summary', async (context) => {
   `;
 
   return context.json({
-    appName: env.appName,
-    version: env.version,
-    environment: env.nodeEnv,
-    publishedNewsCount: Number(summary?.publishedNewsCount ?? 0),
-    latestPublishedAt: summary?.latestPublishedAt ?? null,
-    services: [
-      'React 19 + Rsbuild',
-      'Hono + Bun',
-      'Bun.sql (MySQL)',
-      'Nginx + Docker Compose',
-    ],
+    success: true,
+    data: {
+      appName: env.appName,
+      version: env.version,
+      environment: env.nodeEnv,
+      publishedNewsCount: Number(summary?.publishedNewsCount ?? 0),
+      latestPublishedAt: summary?.latestPublishedAt ?? null,
+      services: [
+        'React 19 + Rsbuild',
+        'Hono + Bun',
+        'Bun.sql (MySQL)',
+        'Nginx + Docker Compose',
+      ],
+    },
   });
 });
 
@@ -105,26 +110,41 @@ app.post('/api/v1/news', async (context) => {
   `;
 
   return context.json({
-    items: rows.map((row) => ({
-      id: Number(row.id),
-      slug: row.slug,
-      title: row.title,
-      summary: row.summary,
-      body: row.body,
-      publishedAt: row.publishedAt,
-    })),
+    success: true,
+    data: {
+      items: rows.map((row) => ({
+        id: Number(row.id),
+        slug: row.slug,
+        title: row.title,
+        summary: row.summary,
+        body: row.body,
+        publishedAt: row.publishedAt,
+      })),
+    },
   });
 });
 
 app.post('/api/v1/meta', (context) => {
   return context.json({
-    appName: env.appName,
-    version: env.version,
-    ports: {
-      frontend: Number(process.env.FRONTEND_PORT ?? 26030),
-      backend: Number(process.env.BACKEND_PORT ?? 26031),
-      mysql: Number(process.env.MYSQL_PORT ?? 26032),
-      nginx: Number(process.env.NGINX_PORT ?? 26033),
+    success: true,
+    data: {
+      appName: env.appName,
+      version: env.version,
+      ports: {
+        frontend: Number(process.env.FRONTEND_PORT ?? 26030),
+        backend: Number(process.env.BACKEND_PORT ?? 26031),
+        mysql: Number(process.env.MYSQL_PORT ?? 26032),
+        nginx: Number(process.env.NGINX_PORT ?? 26033),
+      },
+    },
+  });
+});
+
+app.post('/api/v1/system/test', async (context) => {
+  return context.json({
+    success: true,
+    data: {
+      count: 10,
     },
   });
 });
