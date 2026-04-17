@@ -22,12 +22,14 @@ export async function request<T>(url: string, init?: RequestInit): Promise<ApiRe
     if (!response.ok) {
       let message = `Request failed (${response.status})`;
       try {
-        const body = await response.json() as ApiResponse<unknown>;
+        const body = (await response.json()) as ApiResponse<unknown>;
         if (body.message) message = body.message;
-      } catch {/* ignore */}
+      } catch {
+        /* ignore */
+      }
       result = {success: false, message};
     } else {
-      result = await response.json() as ApiResponse<T>;
+      result = (await response.json()) as ApiResponse<T>;
     }
   } catch {
     result = {success: false, message: 'Network error'};

@@ -16,7 +16,8 @@ const antdTheme: ThemeConfig = {
     colorInfo: '#3b82f6', // Blue 500
 
     // Typography
-    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    fontFamily:
+      "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
     fontSize: 14,
 
     // Layout

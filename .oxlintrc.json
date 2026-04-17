@@ -1,0 +1,37 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react"],
+  "categories": {
+    "correctness": "error"
+  },
+  "env": {
+    "builtin": true
+  },
+  "ignorePatterns": [
+    "node_modules/**",
+    "apps/**/node_modules/**",
+    "dist/**",
+    "apps/**/dist/**",
+    "backups/**"
+  ],
+  "rules": {
+    "react/react-in-jsx-scope": "off"
+  },
+  "overrides": [
+    {
+      "files": ["apps/frontend/**/*.{js,jsx,ts,tsx}"],
+      "env": {
+        "browser": true
+      }
+    },
+    {
+      "files": ["apps/backend/**/*.{js,mjs,cjs,ts,tsx}", "apps/frontend/rsbuild.config.mjs"],
+      "env": {
+        "node": true
+      },
+      "globals": {
+        "Bun": "readonly"
+      }
+    }
+  ]
+}

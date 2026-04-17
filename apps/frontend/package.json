@@ -1,13 +1,13 @@
 {
   "name": "@parrot/frontend",
-  "private": true,
   "version": "1.0.0",
+  "private": true,
   "scripts": {
     "build": "rsbuild build",
     "watch": "rsbuild build --watch",
     "type-check": "tsc --project tsconfig.json --noEmit",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix"
+    "lint": "oxlint src",
+    "lint:fix": "oxlint --fix src && oxfmt --write src"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",

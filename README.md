@@ -31,17 +31,17 @@ Browser
 
 ## 技术栈
 
-| 层 | 技术 | 说明 |
-|---|---|---|
-| 前端 | React 19 + Rsbuild | Rspack 驱动，极速编译；核心包通过 CDN 加载（classic runtime） |
-| 前端 | Ant Design 6 + React Router 7 | UI 组件库 v6 + 客户端路由（懒加载 + 404 兜底） |
-| 前端 | CSS Modules（`.module.less`） | 组件样式自动作用域隔离，避免全局污染 |
-| 后端 | Bun + Hono | 原生 HTTP server，零依赖 SQL 驱动（`Bun.sql`，内置连接池） |
-| 数据库 | MySQL 8.4 | 原生 SQL，无 ORM |
-| 网关 | Nginx 1.27 | Gzip 压缩 + 静态资源缓存 + API 反向代理 |
-| 编排 | Docker Compose + Makefile | 本地开发 & 生产部署统一入口；宿主机无需 Node.js |
-| 镜像仓库 | 阿里云 ACR | 支持 `linux/amd64` 和 `arm64` 双架构 |
-| 语言 | TypeScript 5.9（strict） | 前后端统一 ESLint 配置 |
+| 层       | 技术                          | 说明                                                          |
+| -------- | ----------------------------- | ------------------------------------------------------------- |
+| 前端     | React 19 + Rsbuild            | Rspack 驱动，极速编译；核心包通过 CDN 加载（classic runtime） |
+| 前端     | Ant Design 6 + React Router 7 | UI 组件库 v6 + 客户端路由（懒加载 + 404 兜底）                |
+| 前端     | CSS Modules（`.module.less`） | 组件样式自动作用域隔离，避免全局污染                          |
+| 后端     | Bun + Hono                    | 原生 HTTP server，零依赖 SQL 驱动（`Bun.sql`，内置连接池）    |
+| 数据库   | MySQL 8.4                     | 原生 SQL，无 ORM                                              |
+| 网关     | Nginx 1.27                    | Gzip 压缩 + 静态资源缓存 + API 反向代理                       |
+| 编排     | Docker Compose + Makefile     | 本地开发 & 生产部署统一入口；宿主机无需 Node.js               |
+| 镜像仓库 | 阿里云 ACR                    | 支持 `linux/amd64` 和 `arm64` 双架构                          |
+| 语言     | TypeScript 5.9（strict）      | 前后端统一 oxlint + oxfmt 规范                                |
 
 ---
 
@@ -98,11 +98,11 @@ parrot/
 
 ### 前置依赖
 
-| 工具 | 版本要求 | 说明 |
-|------|----------|------|
-| Docker Desktop | 最新版 | 包含 `docker compose` 和 `buildx` |
-| make | 系统自带 | macOS / Linux 均已内置 |
-| SSH 密钥 | — | 远端部署时需要免密登录目标服务器 |
+| 工具           | 版本要求 | 说明                              |
+| -------------- | -------- | --------------------------------- |
+| Docker Desktop | 最新版   | 包含 `docker compose` 和 `buildx` |
+| make           | 系统自带 | macOS / Linux 均已内置            |
+| SSH 密钥       | —        | 远端部署时需要免密登录目标服务器  |
 
 > 宿主机无需安装 Node.js 或 Bun，所有构建和代码检查均在 Docker 容器内完成。
 
@@ -122,6 +122,7 @@ make up
 ```
 
 `make up` 会依次完成：
+
 1. 在 Docker 容器内安装 Bun 依赖
 2. 构建前端静态资源到 `apps/frontend/dist/`
 3. 检查并同步阿里云 ACR 基础镜像（首次较慢）
@@ -184,7 +185,8 @@ bun --hot apps/backend/src/index.ts
 所有命令均在 Docker 容器内执行，宿主机无需安装 Node.js 或 Bun：
 
 ```bash
-make lint          # ESLint 检查（前后端）
+make lint          # oxlint 检查（前后端）
+make format        # oxfmt 统一格式
 make type-check    # tsc --noEmit（前后端）
 make install       # 安装 / 更新依赖（bun install）
 ```
@@ -198,11 +200,13 @@ make install       # 安装 / 更新依赖（bun install）
 迁移文件位于 `apps/backend/migrations/`，以 `NNNN_description.sql` 命名，按文件名字典序执行。
 
 当前迁移：
+
 - `0001_init.sql` — 创建 `news_posts` 表并插入初始种子数据
 - `0002_add_indexes.sql` — 添加复合索引 `(is_published, published_at DESC)`
 - `0003_drop_redundant_index.sql` — 移除被复合索引覆盖的单列索引
 
 迁移运行时特性：
+
 - **幂等**：已执行的文件记录在 `schema_migrations` 表，不会重复执行
 - **原子性**：每个 `.sql` 文件在一个事务中执行，任意语句失败则整体回滚
 - **并发安全**：获取数据库级别排他锁后执行，防止多实例竞争
@@ -265,6 +269,7 @@ make remote-db-backup
 备份文件命名格式：`parrot_20260101_030000.sql.gz`
 
 备份脚本内置安全措施：
+
 - **磁盘空间检查**：备份前检测可用空间（至少 10 MB），不足则中止
 - **gzip 完整性校验**：备份完成后验证 `.gz` 文件完整性，损坏则自动删除并报错
 
@@ -320,11 +325,11 @@ make remote-db-restore BACKUP_FILE=backups/mysql/parrot_20260101_030000.sql.gz
 
 MySQL 数据存储在 Docker 命名卷 `parrot_mysql-data` 中。
 
-| 操作 | 安全性 | 说明 |
-|------|--------|------|
-| `docker compose down` | ✅ 安全 | 仅停止容器，数据卷保留 |
-| `docker compose down -v` | ❌ **危险** | 同时删除数据卷，数据永久丢失 |
-| 换服务器迁移 | ⚠️ 需导出 | 代码目录之外，需先 `make remote-db-backup` |
+| 操作                     | 安全性      | 说明                                       |
+| ------------------------ | ----------- | ------------------------------------------ |
+| `docker compose down`    | ✅ 安全     | 仅停止容器，数据卷保留                     |
+| `docker compose down -v` | ❌ **危险** | 同时删除数据卷，数据永久丢失               |
+| 换服务器迁移             | ⚠️ 需导出   | 代码目录之外，需先 `make remote-db-backup` |
 
 ---
 
@@ -393,13 +398,13 @@ make remote-rollback
 
 所有业务 API（`/api/*`）统一使用 POST 方法。后端启用了 CORS（`origin: *`）和请求日志中间件。
 
-| 方法 | 路径 | 描述 | 响应示例 |
-|------|------|------|----------|
-| GET | `/healthz` | 后端存活检查（含 DB 连通性），供 Docker/nginx 健康检查使用 | `{"status":"ok","service":"backend","database":"connected"}` |
-| POST | `/api/health` | 服务健康状态 + 版本 | `{"status":"ok","database":"connected","version":"1.0.0"}` |
-| POST | `/api/v1/system/summary` | 应用信息 + 新闻统计 | 见下方示例 |
-| POST | `/api/v1/news` | 全部已发布新闻列表（按发布时间倒序） | `{"items":[...]}` |
-| POST | `/api/v1/meta` | 端口元数据 | `{"appName":"...","ports":{...}}` |
+| 方法 | 路径                     | 描述                                                       | 响应示例                                                     |
+| ---- | ------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------ |
+| GET  | `/healthz`               | 后端存活检查（含 DB 连通性），供 Docker/nginx 健康检查使用 | `{"status":"ok","service":"backend","database":"connected"}` |
+| POST | `/api/health`            | 服务健康状态 + 版本                                        | `{"status":"ok","database":"connected","version":"1.0.0"}`   |
+| POST | `/api/v1/system/summary` | 应用信息 + 新闻统计                                        | 见下方示例                                                   |
+| POST | `/api/v1/news`           | 全部已发布新闻列表（按发布时间倒序）                       | `{"items":[...]}`                                            |
+| POST | `/api/v1/meta`           | 端口元数据                                                 | `{"appName":"...","ports":{...}}`                            |
 
 **`GET /api/v1/system/summary` 响应示例：**
 
@@ -410,12 +415,7 @@ make remote-rollback
   "environment": "production",
   "publishedNewsCount": 3,
   "latestPublishedAt": "2026-03-22 08:30:00",
-  "services": [
-    "React 19 + Rsbuild",
-    "Hono + Bun",
-    "Bun.sql (MySQL)",
-    "Nginx + Docker Compose"
-  ]
+  "services": ["React 19 + Rsbuild", "Hono + Bun", "Bun.sql (MySQL)", "Nginx + Docker Compose"]
 }
 ```
 
@@ -454,54 +454,54 @@ make remote-rollback
 
 ### 应用配置
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `APP_NAME` | `Parrot` | 应用名称（出现在 API 响应中） |
+| 变量       | 默认值        | 说明                              |
+| ---------- | ------------- | --------------------------------- |
+| `APP_NAME` | `Parrot`      | 应用名称（出现在 API 响应中）     |
 | `NODE_ENV` | `development` | 运行环境，生产时设为 `production` |
-| `VERSION` | `latest` | 镜像版本 tag，用于部署追踪 |
+| `VERSION`  | `latest`      | 镜像版本 tag，用于部署追踪        |
 
 ### 端口配置
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
+| 变量            | 默认值  | 说明                                |
+| --------------- | ------- | ----------------------------------- |
 | `FRONTEND_PORT` | `26030` | （保留，前端不使用独立 dev server） |
-| `BACKEND_PORT` | `26031` | Hono 后端宿主机映射端口 |
-| `MYSQL_PORT` | `26032` | MySQL 宿主机映射端口 |
-| `NGINX_PORT` | `26033` | Nginx 网关宿主机映射端口（主入口） |
+| `BACKEND_PORT`  | `26031` | Hono 后端宿主机映射端口             |
+| `MYSQL_PORT`    | `26032` | MySQL 宿主机映射端口                |
+| `NGINX_PORT`    | `26033` | Nginx 网关宿主机映射端口（主入口）  |
 
 ### 数据库配置
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `DATABASE_HOST` | `127.0.0.1` | 本地直连时使用；容器内固定为 `mysql` |
-| `DATABASE_PORT` | `26032` | 本地直连端口 |
-| `MYSQL_DATABASE` | `parrot` | 数据库名 |
-| `MYSQL_USER` | `parrot` | 业务账号 |
-| `MYSQL_PASSWORD` | — | 业务账号密码 |
-| `MYSQL_ROOT_PASSWORD` | — | root 密码（备份 / 迁移使用） |
+| 变量                  | 默认值      | 说明                                 |
+| --------------------- | ----------- | ------------------------------------ |
+| `DATABASE_HOST`       | `127.0.0.1` | 本地直连时使用；容器内固定为 `mysql` |
+| `DATABASE_PORT`       | `26032`     | 本地直连端口                         |
+| `MYSQL_DATABASE`      | `parrot`    | 数据库名                             |
+| `MYSQL_USER`          | `parrot`    | 业务账号                             |
+| `MYSQL_PASSWORD`      | —           | 业务账号密码                         |
+| `MYSQL_ROOT_PASSWORD` | —           | root 密码（备份 / 迁移使用）         |
 
 ### 备份配置
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `BACKUP_RETENTION_DAYS` | `7` | 保留最近 N 天的备份，超期自动删除（0 = 不删除） |
-| `BACKUP_SCHEDULE` | `0 3 * * *` | cron 表达式，用于 `make setup-backup-cron` |
+| 变量                    | 默认值      | 说明                                            |
+| ----------------------- | ----------- | ----------------------------------------------- |
+| `BACKUP_RETENTION_DAYS` | `7`         | 保留最近 N 天的备份，超期自动删除（0 = 不删除） |
+| `BACKUP_SCHEDULE`       | `0 3 * * *` | cron 表达式，用于 `make setup-backup-cron`      |
 
 ### 阿里云 ACR（部署时必填）
 
-| 变量 | 示例值 | 说明 |
-|------|--------|------|
-| `ALIYUN_REGISTRY` | `registry.cn-hangzhou.aliyuncs.com` | ACR 域名 |
-| `IMAGE_NAMESPACE` | `my-namespace` | 命名空间 |
-| `ALIYUN_USERNAME` | `my@example.com` | 登录账号 |
-| `ALIYUN_PASSWORD` | — | 登录密码（勿提交 Git） |
+| 变量              | 示例值                              | 说明                   |
+| ----------------- | ----------------------------------- | ---------------------- |
+| `ALIYUN_REGISTRY` | `registry.cn-hangzhou.aliyuncs.com` | ACR 域名               |
+| `IMAGE_NAMESPACE` | `my-namespace`                      | 命名空间               |
+| `ALIYUN_USERNAME` | `my@example.com`                    | 登录账号               |
+| `ALIYUN_PASSWORD` | —                                   | 登录密码（勿提交 Git） |
 
 ### 远端部署（部署时必填）
 
-| 变量 | 示例值 | 说明 |
-|------|--------|------|
-| `REMOTE_HOST` | `root@1.2.3.4` | SSH 目标（需免密登录） |
-| `REMOTE_PATH` | `/root/app/parrot` | 服务器上的项目目录 |
+| 变量          | 示例值             | 说明                   |
+| ------------- | ------------------ | ---------------------- |
+| `REMOTE_HOST` | `root@1.2.3.4`     | SSH 目标（需免密登录） |
+| `REMOTE_PATH` | `/root/app/parrot` | 服务器上的项目目录     |
 
 ---
 
@@ -513,50 +513,51 @@ make help               # 查看所有可用命令
 
 ### 开发
 
-| 命令 | 说明 |
-|------|------|
-| `make up` | 构建并启动完整本地栈 + 后台 watcher |
-| `make down` | 停止 watcher 和 Docker 栈 |
-| `make restart` | 重启 backend + nginx + watcher（不重建镜像） |
-| `make logs` | 实时查看所有服务日志 |
-| `make ps` | 查看服务运行状态 |
-| `make dev-backend` | 在 Docker 中启动后端（重建容器） |
-| `make watch` | 前台运行前端 watcher |
-| `make start-watch` | 启动后台前端 watcher |
-| `make stop-watch` | 停止前端 watcher |
+| 命令               | 说明                                         |
+| ------------------ | -------------------------------------------- |
+| `make up`          | 构建并启动完整本地栈 + 后台 watcher          |
+| `make down`        | 停止 watcher 和 Docker 栈                    |
+| `make restart`     | 重启 backend + nginx + watcher（不重建镜像） |
+| `make logs`        | 实时查看所有服务日志                         |
+| `make ps`          | 查看服务运行状态                             |
+| `make dev-backend` | 在 Docker 中启动后端（重建容器）             |
+| `make watch`       | 前台运行前端 watcher                         |
+| `make start-watch` | 启动后台前端 watcher                         |
+| `make stop-watch`  | 停止前端 watcher                             |
 
 ### 数据库
 
-| 命令 | 说明 |
-|------|------|
-| `make migrate` | 执行迁移（等同于 compose-migrate） |
-| `make compose-migrate` | 在容器内执行迁移 |
-| `make db-backup` | 手动本地备份 |
-| `make db-restore BACKUP_FILE=...` | 从本地快照恢复 |
-| `make setup-backup-cron` | 安装本地定时备份 cron job |
+| 命令                              | 说明                               |
+| --------------------------------- | ---------------------------------- |
+| `make migrate`                    | 执行迁移（等同于 compose-migrate） |
+| `make compose-migrate`            | 在容器内执行迁移                   |
+| `make db-backup`                  | 手动本地备份                       |
+| `make db-restore BACKUP_FILE=...` | 从本地快照恢复                     |
+| `make setup-backup-cron`          | 安装本地定时备份 cron job          |
 
 ### 构建与代码质量
 
-| 命令 | 说明 |
-|------|------|
-| `make install` | 安装所有 workspace 依赖 |
-| `make build` | 构建前端 + 后端 |
-| `make frontend-build` | 仅构建前端静态资源 |
-| `make lint` | ESLint 检查 |
-| `make type-check` | TypeScript 类型检查 |
+| 命令                  | 说明                    |
+| --------------------- | ----------------------- |
+| `make install`        | 安装所有 workspace 依赖 |
+| `make build`          | 构建前端 + 后端         |
+| `make frontend-build` | 仅构建前端静态资源      |
+| `make lint`           | oxlint 检查             |
+| `make format`         | oxfmt 格式化            |
+| `make type-check`     | TypeScript 类型检查     |
 
 ### 部署（生产）
 
-| 命令 | 说明 |
-|------|------|
-| `make push` | 构建并推送 Docker 镜像到 ACR |
-| `make remote-deploy` | 一键完整部署（包含推镜像 + 同步 + 迁移） |
-| `make remote-rollback` | 回滚到上一次部署的版本 |
-| `make remote-verify` | 验证远端服务健康状态 |
-| `make remote-logs` | 实时查看远端服务日志 |
-| `make remote-db-backup` | 在服务器创建数据库快照 |
-| `make remote-db-restore BACKUP_FILE=...` | 从快照恢复服务器数据库 |
-| `make remote-setup-backup-cron` | 在服务器安装定时备份任务 |
+| 命令                                     | 说明                                     |
+| ---------------------------------------- | ---------------------------------------- |
+| `make push`                              | 构建并推送 Docker 镜像到 ACR             |
+| `make remote-deploy`                     | 一键完整部署（包含推镜像 + 同步 + 迁移） |
+| `make remote-rollback`                   | 回滚到上一次部署的版本                   |
+| `make remote-verify`                     | 验证远端服务健康状态                     |
+| `make remote-logs`                       | 实时查看远端服务日志                     |
+| `make remote-db-backup`                  | 在服务器创建数据库快照                   |
+| `make remote-db-restore BACKUP_FILE=...` | 从快照恢复服务器数据库                   |
+| `make remote-setup-backup-cron`          | 在服务器安装定时备份任务                 |
 
 ---
 
@@ -632,8 +633,8 @@ make restart
 
 `.env` 的备份方案（按推荐程度排序）：
 
-| 方案 | 适用场景 |
-|------|----------|
-| 1Password / Bitwarden Secure Note | 个人或小团队，最轻量 |
-| 阿里云 KMS / AWS Secrets Manager | 团队协作，合规要求 |
+| 方案                               | 适用场景              |
+| ---------------------------------- | --------------------- |
+| 1Password / Bitwarden Secure Note  | 个人或小团队，最轻量  |
+| 阿里云 KMS / AWS Secrets Manager   | 团队协作，合规要求    |
 | GitHub Actions / GitLab CI Secrets | 全自动化 CI/CD 流水线 |

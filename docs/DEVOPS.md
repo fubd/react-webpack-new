@@ -6,21 +6,21 @@
 
 ## 命令速查
 
-| 命令 | 说明 |
-|------|------|
-| `make create-migration NAME=xxx` | 创建带自动编号的迁移文件 |
-| `make compose-migrate` | 在容器内执行迁移 |
-| `make db-backup` | 手动本地备份 |
-| `make db-restore BACKUP_FILE=...` | 从本地快照恢复 |
-| `make setup-backup-cron` | 安装本地定时备份任务 |
-| `make push` | 构建并推送 Docker 镜像到 ACR |
-| `make remote-deploy` | 一键完整部署（推镜像 + 同步 + 迁移） |
-| `make remote-rollback` | 回滚到上一次部署的版本 |
-| `make remote-verify` | 验证远端服务健康状态 |
-| `make remote-logs` | 实时查看远端服务日志 |
-| `make remote-db-backup` | 在服务器创建数据库快照 |
-| `make remote-db-restore BACKUP_FILE=...` | 从快照恢复服务器数据库 |
-| `make remote-setup-backup-cron` | 在服务器安装定时备份任务 |
+| 命令                                     | 说明                                 |
+| ---------------------------------------- | ------------------------------------ |
+| `make create-migration NAME=xxx`         | 创建带自动编号的迁移文件             |
+| `make compose-migrate`                   | 在容器内执行迁移                     |
+| `make db-backup`                         | 手动本地备份                         |
+| `make db-restore BACKUP_FILE=...`        | 从本地快照恢复                       |
+| `make setup-backup-cron`                 | 安装本地定时备份任务                 |
+| `make push`                              | 构建并推送 Docker 镜像到 ACR         |
+| `make remote-deploy`                     | 一键完整部署（推镜像 + 同步 + 迁移） |
+| `make remote-rollback`                   | 回滚到上一次部署的版本               |
+| `make remote-verify`                     | 验证远端服务健康状态                 |
+| `make remote-logs`                       | 实时查看远端服务日志                 |
+| `make remote-db-backup`                  | 在服务器创建数据库快照               |
+| `make remote-db-restore BACKUP_FILE=...` | 从快照恢复服务器数据库               |
+| `make remote-setup-backup-cron`          | 在服务器安装定时备份任务             |
 
 ---
 
@@ -51,6 +51,7 @@ docker compose --env-file .env exec mysql \
 ```
 
 **注意**：
+
 - 永远不要修改已有的迁移文件，只新增
 - `make up` / `make restart` 都会自动执行迁移，无需手动操作
 - 迁移是幂等的，已执行过不会重复跑
@@ -79,6 +80,7 @@ make remote-setup-backup-cron
 ```
 
 `remote-deploy` 内部执行顺序：
+
 1. `make push` — 构建 `linux/amd64` 镜像，推送到阿里云 ACR
 2. `make remote-sync` — 通过 SSH 同步 `.env`、compose 文件、脚本到服务器
 3. 服务器上拉取镜像 → 启动 MySQL → 执行迁移 → 重启 backend + nginx → 清理旧镜像
@@ -91,6 +93,8 @@ make remote-setup-backup-cron
 ```bash
 # 1. 本地验证
 make lint && make type-check && make frontend-build
+# 如需统一格式，可额外执行
+make format
 
 # 2. 发布（指定新版本号）
 VERSION=1.1.0 make remote-deploy
@@ -148,6 +152,7 @@ make remote-verify
 ```
 
 恢复脚本的安全措施：
+
 - 恢复前自动创建 `pre_restore_20260412_102030.sql.gz` 备份
 - 恢复后验证 gzip 文件完整性
 - 用备份内容**完全覆盖**当前数据库，操作前务必确认
@@ -185,18 +190,20 @@ make remote-setup-backup-cron
 
 ### 核心原则：所有结构变更必须走迁移文件
 
-**不要用 DataGrip  等工具直接改表结构。** 原因：
+**不要用 DataGrip 等工具直接改表结构。** 原因：
 
 - 迁移系统通过 `schema_migrations` 表记录已执行的变更，GUI 工具绕过了这个机制
 - 直接改库后，其他开发者 `make up` 不会拿到你的变更，生产部署也不会执行
 - 迁移文件是唯一的数据库结构变更来源，它就是"数据库的 Git"
 
 **DataGrip 可以做的事**：
+
 - 查看、查询数据（SELECT）
 - 在写迁移文件前，先用 DataGrip 测试 SQL 语句是否正确
 - 查看表结构、索引
 
 **DataGrip 不能做的事**：
+
 - CREATE TABLE / ALTER TABLE / DROP TABLE
 - 加减字段、改索引、改字段类型
 
@@ -326,11 +333,13 @@ docker compose --env-file .env exec mysql \
 迁移文件位于 `apps/backend/migrations/`，以 `NNNN_description.sql` 命名，按文件名字典序执行。
 
 当前迁移：
+
 - `0001_init.sql` — 创建 `news_posts` 表并插入初始种子数据
 - `0002_add_indexes.sql` — 添加复合索引 `(is_published, published_at DESC)`
 - `0003_drop_redundant_index.sql` — 移除被复合索引覆盖的单列索引
 
 迁移运行时特性：
+
 - **幂等**：已执行的文件记录在 `schema_migrations` 表，不会重复执行
 - **原子性**：每个 `.sql` 文件在一个事务中执行，任意语句失败则整体回滚
 - **并发安全**：获取数据库级别排他锁后执行，防止多实例竞争
@@ -355,6 +364,7 @@ make remote-db-backup       # 生产
 备份文件命名格式：`parrot_20260101_030000.sql.gz`
 
 备份脚本内置安全措施：
+
 - **磁盘空间检查**：备份前检测可用空间（至少 10 MB），不足则中止
 - **gzip 完整性校验**：备份完成后验证 `.gz` 文件完整性，损坏则自动删除并报错
 
@@ -384,11 +394,11 @@ bash scripts/setup-backup-cron.sh --remove
 
 MySQL 数据存储在 Docker 命名卷 `parrot_mysql-data` 中。
 
-| 操作 | 安全性 | 说明 |
-|------|--------|------|
-| `docker compose down` | 安全 | 仅停止容器，数据卷保留 |
-| `docker compose down -v` | **危险** | 同时删除数据卷，数据永久丢失 |
-| 换服务器迁移 | 需导出 | 需先 `make remote-db-backup`，在新服务器恢复 |
+| 操作                     | 安全性   | 说明                                         |
+| ------------------------ | -------- | -------------------------------------------- |
+| `docker compose down`    | 安全     | 仅停止容器，数据卷保留                       |
+| `docker compose down -v` | **危险** | 同时删除数据卷，数据永久丢失                 |
+| 换服务器迁移             | 需导出   | 需先 `make remote-db-backup`，在新服务器恢复 |
 
 ---
 
@@ -427,11 +437,11 @@ make remote-sync
 
 ### 架构说明
 
-| 场景 | 架构 | 说明 |
-|------|------|------|
-| 本地开发 (`make up`) | ARM64 | 使用本机架构直接构建运行 |
-| 生产构建 (`make push`) | AMD64 | `BUILD_PLATFORMS ?= linux/amd64`，交叉编译 |
-| 基础镜像 (ACR) | 双架构 | `linux/amd64,linux/arm64` 都同步到 ACR |
+| 场景                   | 架构   | 说明                                       |
+| ---------------------- | ------ | ------------------------------------------ |
+| 本地开发 (`make up`)   | ARM64  | 使用本机架构直接构建运行                   |
+| 生产构建 (`make push`) | AMD64  | `BUILD_PLATFORMS ?= linux/amd64`，交叉编译 |
+| 基础镜像 (ACR)         | 双架构 | `linux/amd64,linux/arm64` 都同步到 ACR     |
 
 ---
 
@@ -441,8 +451,8 @@ make remote-sync
 
 `.env` 的备份方案（按推荐程度排序）：
 
-| 方案 | 适用场景 |
-|------|----------|
-| 1Password / Bitwarden Secure Note | 个人或小团队，最轻量 |
-| 阿里云 KMS / AWS Secrets Manager | 团队协作，合规要求 |
-| GitHub Actions / GitLab CI Secrets | 全自动化流水线 |
+| 方案                               | 适用场景             |
+| ---------------------------------- | -------------------- |
+| 1Password / Bitwarden Secure Note  | 个人或小团队，最轻量 |
+| 阿里云 KMS / AWS Secrets Manager   | 团队协作，合规要求   |
+| GitHub Actions / GitLab CI Secrets | 全自动化流水线       |

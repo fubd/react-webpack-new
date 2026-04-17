@@ -10,9 +10,9 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
 // These are loaded as classic <script> tags and expose global variables
 // that Rsbuild's externals will reference at runtime.
 const CDN = {
-  react:         'https://s.fubodong.com/react@19.2.4.js',
-  reactDom:      'https://s.fubodong.com/react-dom@19.2.4.js',
-  reactDomClient:'https://s.fubodong.com/react-dom-client@19.2.4.js',
+  react: 'https://s.fubodong.com/react@19.2.4.js',
+  reactDom: 'https://s.fubodong.com/react-dom@19.2.4.js',
+  reactDomClient: 'https://s.fubodong.com/react-dom-client@19.2.4.js',
 };
 
 export default defineConfig({
@@ -39,9 +39,21 @@ export default defineConfig({
     title: 'Parrot',
     // Inject UMD bundles before the app script so globals are available.
     tags: [
-      {tag: 'script', attrs: {src: CDN.react, crossorigin: 'anonymous', defer: true}, append: false},
-      {tag: 'script', attrs: {src: CDN.reactDom, crossorigin: 'anonymous', defer: true}, append: false},
-      {tag: 'script', attrs: {src: CDN.reactDomClient, crossorigin: 'anonymous', defer: true}, append: false},
+      {
+        tag: 'script',
+        attrs: {src: CDN.react, crossorigin: 'anonymous', defer: true},
+        append: false,
+      },
+      {
+        tag: 'script',
+        attrs: {src: CDN.reactDom, crossorigin: 'anonymous', defer: true},
+        append: false,
+      },
+      {
+        tag: 'script',
+        attrs: {src: CDN.reactDomClient, crossorigin: 'anonymous', defer: true},
+        append: false,
+      },
     ],
   },
   performance: {
@@ -58,8 +70,8 @@ export default defineConfig({
     rspack: {
       // Map import paths to the global variables exposed by the UMD bundles.
       externals: {
-        'react':            'React',
-        'react-dom':        'ReactDOM',
+        react: 'React',
+        'react-dom': 'ReactDOM',
         'react-dom/client': 'ReactDOMClient',
       },
       ...(process.env.DOCKER_DEV === '1' ? {watchOptions: {poll: 1000}} : {}),

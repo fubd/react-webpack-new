@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    "node_modules/**",
+    "apps/**/node_modules/**",
+    "dist/**",
+    "apps/**/dist/**",
+    "backups/**"
+  ],
+  "singleQuote": true,
+  "jsxSingleQuote": false,
+  "semi": true,
+  "tabWidth": 2,
+  "trailingComma": "all",
+  "bracketSpacing": false,
+  "arrowParens": "avoid"
+}

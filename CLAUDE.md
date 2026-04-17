@@ -13,7 +13,8 @@ make up                  # Install deps, build frontend, build images, migrate D
 make down                # Stop watcher and Docker stack
 make restart             # Recreate backend + nginx containers, restart watcher
 make install             # bun install inside Docker dev container
-make lint                # ESLint (both apps) inside Docker
+make lint                # oxlint (both apps) inside Docker
+make format              # oxfmt across the repo inside Docker
 make type-check          # tsc --noEmit (both apps) inside Docker
 make frontend-build      # Build frontend assets inside Docker
 make logs                # Tail all container logs
@@ -21,6 +22,7 @@ make ps                  # Show container status
 ```
 
 Frontend watcher (runs in Docker container `parrot-watch`, uses polling for macOS compatibility):
+
 ```bash
 make start-watch         # Start background watcher
 make stop-watch          # Stop watcher
@@ -28,6 +30,7 @@ make watch               # Foreground watcher
 ```
 
 Database:
+
 ```bash
 make create-migration NAME=add_users_table   # Auto-numbered SQL migration file
 make migrate                                  # Run migrations (alias for compose-migrate)
@@ -43,12 +46,14 @@ make db-restore BACKUP_FILE=backups/mysql/parrot_20260101_030000.sql.gz
 **Monorepo structure:** Bun workspaces — root `package.json` defines `"workspaces": ["apps/*"]`. Scripts use `bun run --filter <workspace> <script>`. `apps/backend/` and `apps/frontend/` each have their own `package.json`, `tsconfig.json`, and source tree. Shared TypeScript config in `tsconfig.base.json`.
 
 **Backend** (`apps/backend/src/`):
+
 - `index.ts` — All routes, middleware (CORS, logging, error handler), graceful shutdown. Routes use `Bun.sql` tagged template literals for raw SQL queries — no ORM.
 - `env.ts` — Validates required env vars at startup, exports typed `env` object.
 - `db/client.ts` — `Bun.sql` connection pool with `waitForDatabase()` retry loop.
 - `db/migrate.ts` — Custom migration runner: `GET_LOCK` for concurrency, `schema_migrations` table for idempotency, one transaction per file for atomicity. Parses SQL statements respecting strings and comments.
 
 **Frontend** (`apps/frontend/src/`):
+
 - Rsbuild (Rspack) with `pluginReact` and `pluginLess`.
 - React, react-dom, react-dom/client are CDN externals (UMD bundles from `s.fubodong.com`).
 - Routes defined in `routes/config.tsx` with `React.lazy()` and a 404 catch-all.
@@ -58,6 +63,7 @@ make db-restore BACKUP_FILE=backups/mysql/parrot_20260101_030000.sql.gz
 **API convention:** All `/api/*` endpoints use POST method. Only `/healthz` uses GET (consumed by Docker healthcheck and nginx).
 
 **Docker setup:**
+
 - `docker-compose.yml` — Local dev: backend (bun), mysql, nginx, dev (`oven/bun:1-alpine` for builds/lint/type-check). Nginx mounts host `./apps/frontend/dist` for hot reload from watcher.
 - `docker-compose.deploy.yml` — Production: same services minus dev container and build contexts. Nginx image just copies pre-built frontend assets (no bun needed in nginx image). Frontend is built natively before `docker buildx`, avoiding slow cross-platform installs.
 - `dev` service: `DOCKER_DEV=1` env var enables rspack polling (`watchOptions.poll: 1000`) for file watching inside Docker on macOS.

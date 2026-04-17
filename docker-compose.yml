@@ -10,7 +10,7 @@ services:
         BASE_BUN_IMAGE: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-bun:1-alpine
     restart: unless-stopped
     init: true
-    command: ["bun", "--watch", "./src/index.ts"]
+    command: ['bun', '--watch', './src/index.ts']
     environment:
       APP_NAME: ${APP_NAME}
       VERSION: ${VERSION}
@@ -25,7 +25,7 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
-      - "${BACKEND_PORT:-26031}:26031"
+      - '${BACKEND_PORT:-26031}:26031'
     depends_on:
       mysql:
         condition: service_healthy
@@ -33,7 +33,7 @@ services:
       - ./apps/backend/src:/app/src
       - ./apps/backend/migrations:/app/migrations
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:26031/healthz >/dev/null || exit 1"]
+      test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1:26031/healthz >/dev/null || exit 1']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -44,8 +44,8 @@ services:
       - parrot
     logging:
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   mysql:
     image: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-mysql:8.4.4
@@ -63,11 +63,11 @@ services:
       - --innodb_buffer_pool_size=128M
       - --performance_schema=OFF
     ports:
-      - "${MYSQL_PORT:-26032}:3306"
+      - '${MYSQL_PORT:-26032}:3306'
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -78,8 +78,8 @@ services:
       - parrot
     logging:
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   nginx:
     image: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-nginx:1.27-alpine
@@ -89,12 +89,12 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "${NGINX_PORT:-26033}:80"
+      - '${NGINX_PORT:-26033}:80'
     volumes:
       - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./apps/frontend/dist:/usr/share/nginx/html:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz >/dev/null || exit 1"]
+      test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1/healthz >/dev/null || exit 1']
       interval: 5s
       timeout: 5s
       retries: 3
@@ -105,15 +105,15 @@ services:
       - parrot
     logging:
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   dev:
     image: oven/bun:1-alpine
     working_dir: /app
     environment:
       BUN_CONFIG_REGISTRY: ${PKG_REGISTRY:-https://registry.npmmirror.com}
-      DOCKER_DEV: "1"
+      DOCKER_DEV: '1'
     volumes:
       - .:/app
     networks:

@@ -36,7 +36,7 @@ app.onError((err, context) => {
   );
 });
 
-app.notFound((context) => {
+app.notFound(context => {
   return context.json(
     {
       success: false,
@@ -48,7 +48,7 @@ app.notFound((context) => {
 
 app.use('/api/*', cors({origin: '*'}));
 
-app.get('/healthz', async (context) => {
+app.get('/healthz', async context => {
   await db`SELECT 1 AS ok`;
   return context.json({
     status: 'ok',
@@ -57,7 +57,7 @@ app.get('/healthz', async (context) => {
   });
 });
 
-app.post('/api/health', async (context) => {
+app.post('/api/health', async context => {
   await db`SELECT 1 AS ok`;
   return context.json({
     success: true,
@@ -68,7 +68,7 @@ app.post('/api/health', async (context) => {
   });
 });
 
-app.post('/api/v1/system/summary', async (context) => {
+app.post('/api/v1/system/summary', async context => {
   const [summary] = await db<SummaryRow[]>`
     SELECT
       COUNT(*) AS publishedNewsCount,
@@ -85,17 +85,12 @@ app.post('/api/v1/system/summary', async (context) => {
       environment: env.nodeEnv,
       publishedNewsCount: Number(summary?.publishedNewsCount ?? 0),
       latestPublishedAt: summary?.latestPublishedAt ?? null,
-      services: [
-        'React 19 + Rsbuild',
-        'Hono + Bun',
-        'Bun.sql (MySQL)',
-        'Nginx + Docker Compose',
-      ],
+      services: ['React 19 + Rsbuild', 'Hono + Bun', 'Bun.sql (MySQL)', 'Nginx + Docker Compose'],
     },
   });
 });
 
-app.post('/api/v1/news', async (context) => {
+app.post('/api/v1/news', async context => {
   const rows = await db<NewsRow[]>`
     SELECT
       id,
@@ -112,7 +107,7 @@ app.post('/api/v1/news', async (context) => {
   return context.json({
     success: true,
     data: {
-      items: rows.map((row) => ({
+      items: rows.map(row => ({
         id: Number(row.id),
         slug: row.slug,
         title: row.title,
@@ -124,7 +119,7 @@ app.post('/api/v1/news', async (context) => {
   });
 });
 
-app.post('/api/v1/meta', (context) => {
+app.post('/api/v1/meta', context => {
   return context.json({
     success: true,
     data: {
@@ -140,7 +135,7 @@ app.post('/api/v1/meta', (context) => {
   });
 });
 
-app.post('/api/v1/system/test', async (context) => {
+app.post('/api/v1/system/test', async context => {
   return context.json({
     success: true,
     data: {
@@ -171,5 +166,9 @@ const server = Bun.serve({
 
 console.log(`[backend] listening on http://localhost:${server.port}`);
 
-process.on('SIGINT', () => {void shutdown('SIGINT');});
-process.on('SIGTERM', () => {void shutdown('SIGTERM');});
+process.on('SIGINT', () => {
+  void shutdown('SIGINT');
+});
+process.on('SIGTERM', () => {
+  void shutdown('SIGTERM');
+});

@@ -1,14 +1,14 @@
 {
   "name": "@parrot/backend",
-  "private": true,
   "version": "1.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "bun --hot src/index.ts",
     "start": "bun src/index.ts",
     "type-check": "tsc --project tsconfig.json --noEmit",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
+    "lint": "oxlint src",
+    "lint:fix": "oxlint --fix src && oxfmt --write src",
     "migrate": "bun src/db/migrate.ts"
   },
   "dependencies": {

@@ -23,14 +23,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback ?? (
-        <div style={{padding: '80px 0', textAlign: 'center'}}>
-          <p style={{color: '#64748b', fontSize: 18}}>
-            Something went wrong.
-          </p>
-          <p style={{margin: '8px 0', color: '#64748b', fontSize: 14}}>
-            Try refreshing the page.          </p>
-        </div>
+      return (
+        this.props.fallback ?? (
+          <div style={{padding: '80px 0', textAlign: 'center'}}>
+            <p style={{color: '#64748b', fontSize: 18}}>Something went wrong.</p>
+            <p style={{margin: '8px 0', color: '#64748b', fontSize: 14}}>
+              Try refreshing the page.{' '}
+            </p>
+          </div>
+        )
       );
     }
 

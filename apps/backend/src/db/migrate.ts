@@ -10,6 +10,14 @@ const migrationLockName = 'parrot_schema_migrations';
 
 type LockRow = {acquired: number | null};
 type MigrationRow = {name: string};
+type SqlTransaction = {
+  unsafe: (statement: string) => Promise<unknown>;
+  (strings: TemplateStringsArray, ...values: unknown[]): Promise<unknown>;
+};
+type TransactionCapableDb = Partial<{
+  begin: (callback: (tx: SqlTransaction) => Promise<void>) => Promise<void>;
+  transaction: (callback: (tx: SqlTransaction) => Promise<void>) => Promise<void>;
+}>;
 
 function splitSqlStatements(sql: string): string[] {
   const statements: string[] = [];
@@ -113,7 +121,7 @@ export const migrateDatabase = async () => {
     `;
 
     const migrationFiles = (await readdir(migrationsDir))
-      .filter((f) => f.endsWith('.sql'))
+      .filter(f => f.endsWith('.sql'))
       .sort((a, b) => a.localeCompare(b));
 
     for (const fileName of migrationFiles) {
@@ -132,19 +140,17 @@ export const migrateDatabase = async () => {
       const statements = splitSqlStatements(migrationSql);
 
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const dbAny = db as any;
-        if (typeof dbAny.begin === 'function') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await dbAny.begin(async (tx: any) => {
+        const transactionalDb = db as typeof db & TransactionCapableDb;
+
+        if (typeof transactionalDb.begin === 'function') {
+          await transactionalDb.begin(async tx => {
             for (const statement of statements) {
               await tx.unsafe(statement);
             }
             await tx`INSERT INTO schema_migrations (name) VALUES (${fileName})`;
           });
-        } else if (typeof dbAny.transaction === 'function') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await dbAny.transaction(async (tx: any) => {
+        } else if (typeof transactionalDb.transaction === 'function') {
+          await transactionalDb.transaction(async tx => {
             for (const statement of statements) {
               await tx.unsafe(statement);
             }

@@ -55,14 +55,18 @@ const News: React.FC = () => {
 
   return (
     <div style={{display: 'grid', gap: 20}}>
-      <Typography.Title level={2} style={{marginBottom: 0}}>News now</Typography.Title>
+      <Typography.Title level={2} style={{marginBottom: 0}}>
+        News now
+      </Typography.Title>
       <div>
-        <Button type="primary" onClick={handleClick}>click</Button>
+        <Button type="primary" onClick={handleClick}>
+          click
+        </Button>
       </div>
       <Typography.Paragraph style={{marginTop: 0}}>
         These entries are coming from MySQL through the Hono API.11113z
       </Typography.Paragraph>
-      {items.map((item) => (
+      {items.map(item => (
         <Card key={item.id} title={item.title} extra={item.publishedAt}>
           <Typography.Paragraph>{item.summary}</Typography.Paragraph>
           <Typography.Paragraph type="secondary">{item.body}</Typography.Paragraph>

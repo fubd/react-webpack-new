@@ -39,11 +39,13 @@ const Home: React.FC = () => {
     <div className={styles.homeWrapper}>
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <Tag color="cyan" bordered={false}>Full-stack refactor branch</Tag>
+          <Tag color="cyan" bordered={false}>
+            Full-stack refactor branch
+          </Tag>
           <h1 className={styles.heroTitle}>HELLO WORLD</h1>
           <p className={styles.heroSubtitle}>
-            React stays on the surface, Hono serves the API, MySQL stores the data,
-            and nginx routes traffic without taking on SSL responsibility inside the container boundary.
+            React stays on the surface, Hono serves the API, MySQL stores the data, and nginx routes
+            traffic without taking on SSL responsibility inside the container boundary.
           </p>
           <Space size="middle" wrap>
             <Button type="primary" size="large">
@@ -74,7 +76,9 @@ const Home: React.FC = () => {
             </article>
             <article className={styles.statCard}>
               <span className={styles.statLabel}>Last content sync</span>
-              <strong className={styles.statValue}>{summary?.latestPublishedAt ?? 'Pending'}</strong>
+              <strong className={styles.statValue}>
+                {summary?.latestPublishedAt ?? 'Pending'}
+              </strong>
             </article>
             <article className={styles.statCard}>
               <span className={styles.statLabel}>Runtime</span>
@@ -83,18 +87,23 @@ const Home: React.FC = () => {
           </div>
 
           <div className={styles.serviceList}>
-            {(summary?.services ?? [
-              'React 19 + Rsbuild',
-              'Hono + TypeScript',
-              'Drizzle raw SQL + MySQL',
-              'Nginx + Docker Compose',
-            ]).map((service) => (
-              <span key={service} className={styles.serviceTag}>{service}</span>
+            {(
+              summary?.services ?? [
+                'React 19 + Rsbuild',
+                'Hono + TypeScript',
+                'Drizzle raw SQL + MySQL',
+                'Nginx + Docker Compose',
+              ]
+            ).map(service => (
+              <span key={service} className={styles.serviceTag}>
+                {service}
+              </span>
             ))}
           </div>
 
           <p className={styles.statusMessage}>
-            The page reads real data from the new backend, so you can immediately verify the full stack is connected.
+            The page reads real data from the new backend, so you can immediately verify the full
+            stack is connected.
           </p>
         </div>
       </section>
@@ -103,24 +112,25 @@ const Home: React.FC = () => {
         <article className={styles.card}>
           <Title level={4}>Raw SQL stays visible</Title>
           <Paragraph>
-            The backend keeps database behavior close to the code you read every day,
-            with Drizzle used as the connection and SQL execution layer instead of hiding queries behind heavy repositories.
+            The backend keeps database behavior close to the code you read every day, with Drizzle
+            used as the connection and SQL execution layer instead of hiding queries behind heavy
+            repositories.
           </Paragraph>
         </article>
 
         <article className={styles.card}>
           <Title level={4}>Docker is production-oriented</Title>
           <Paragraph>
-            Frontend, backend, MySQL, and gateway nginx each have a clear role,
-            while compose keeps ports predictable and images ready for Aliyun ACR publishing.
+            Frontend, backend, MySQL, and gateway nginx each have a clear role, while compose keeps
+            ports predictable and images ready for Aliyun ACR publishing.
           </Paragraph>
         </article>
 
         <article className={styles.card}>
           <Title level={4}>Operations live in Makefile</Title>
           <Paragraph>
-            Build, type-check, migrate, run, push, and remote deploy commands are centralized
-            so the refactor is easier to operate than a stack of ad-hoc shell history.
+            Build, type-check, migrate, run, push, and remote deploy commands are centralized so the
+            refactor is easier to operate than a stack of ad-hoc shell history.
           </Paragraph>
         </article>
       </section>

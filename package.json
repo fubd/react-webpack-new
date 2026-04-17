@@ -1,7 +1,7 @@
 {
   "name": "parrot-platform",
-  "private": true,
   "version": "1.0.0",
+  "private": true,
   "workspaces": [
     "apps/*"
   ],
@@ -11,17 +11,15 @@
     "type-check": "bun run --filter @parrot/frontend type-check && bun run --filter @parrot/backend type-check",
     "lint": "bun run --filter @parrot/frontend lint && bun run --filter @parrot/backend lint",
     "lint:fix": "bun run --filter @parrot/frontend lint:fix && bun run --filter @parrot/backend lint:fix",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
     "dev:backend": "bun run --filter @parrot/backend dev",
     "migrate": "bun run --filter @parrot/backend migrate"
   },
   "devDependencies": {
-    "@stylistic/eslint-plugin": "^5.6.1",
-    "eslint": "^9.39.2",
-    "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "globals": "^16.5.0",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.49.0"
+    "oxfmt": "^0.45.0",
+    "oxlint": "^1.60.0",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "bun": ">=1.0.0"

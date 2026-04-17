@@ -11,7 +11,7 @@ const MainLayout = () => {
   const location = useLocation();
 
   useEffect(() => {
-    const current = pageRoutes.find((r) => {
+    const current = pageRoutes.find(r => {
       if (r.index) return location.pathname === '/';
       return location.pathname === `/${r.path}`;
     });
@@ -34,8 +34,8 @@ const MainLayout = () => {
           <nav className={styles.nav} aria-label="Primary">
             <div className={styles.navRail}>
               {pageRoutes
-                .filter((route) => route.handle?.nav)
-                .map((route) => {
+                .filter(route => route.handle?.nav)
+                .map(route => {
                   const to = route.index ? '/' : `/${route.path ?? ''}`;
 
                   return (
@@ -43,7 +43,9 @@ const MainLayout = () => {
                       key={to}
                       to={to}
                       end={route.index === true}
-                      className={({isActive}) => `${styles.navLink}${isActive ? ` ${styles.navLinkActive}` : ''}`}
+                      className={({isActive}) =>
+                        `${styles.navLink}${isActive ? ` ${styles.navLinkActive}` : ''}`
+                      }
                     >
                       {route.handle?.title ?? 'Untitled'}
                     </NavLink>
@@ -61,7 +63,7 @@ const MainLayout = () => {
         <div className={styles.contentInner}>
           <ErrorBoundary>
             <Suspense
-              fallback={(
+              fallback={
                 <div
                   style={{
                     display: 'flex',
@@ -72,7 +74,7 @@ const MainLayout = () => {
                 >
                   Loading...
                 </div>
-              )}
+              }
             >
               <Outlet />
             </Suspense>

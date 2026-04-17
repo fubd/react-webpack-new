@@ -43,7 +43,7 @@ BACKEND_CACHE_ARGS :=
 NGINX_CACHE_ARGS :=
 endif
 
-.PHONY: help guard-stack-env install build frontend-build type-check lint dev-backend migrate \
+.PHONY: help guard-stack-env install build frontend-build type-check lint format dev-backend migrate \
 	create-migration compose-migrate up down restart logs ps watch start-watch stop-watch acr-login seed-base-images ensure-base-images compose-build push remote-sync \
 	remote-deploy remote-verify remote-rollback remote-logs db-backup db-restore remote-db-backup remote-db-restore \
 	setup-backup-cron remote-setup-backup-cron
@@ -54,7 +54,8 @@ help:
 	@printf "  %-26s %s\n" "build" "Build frontend and backend"
 	@printf "  %-26s %s\n" "frontend-build" "Build frontend assets for nginx to serve"
 	@printf "  %-26s %s\n" "type-check" "Run TypeScript checks for both apps"
-	@printf "  %-26s %s\n" "lint" "Run ESLint for both apps"
+	@printf "  %-26s %s\n" "lint" "Run oxlint for both apps"
+	@printf "  %-26s %s\n" "format" "Run oxfmt across the repository"
 	@printf "  %-26s %s\n" "dev-backend" "Start the backend in Docker (recreates container)"
 	@printf "  %-26s %s\n" "migrate" "Run backend SQL migrations (via compose-migrate)"
 	@printf "  %-26s %s\n" "create-migration" "Create a numbered migration file (NAME=required)"
@@ -98,6 +99,9 @@ type-check:
 
 lint:
 	$(DEV_RUN) bun run lint
+
+format:
+	$(DEV_RUN) bun run format
 
 dev-backend:
 	@$(LOCAL_COMPOSE) up -d --force-recreate backend
