@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+set -eu
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+if [ ! -x "./node_modules/.bin/oxfmt" ] || [ ! -x "./node_modules/.bin/oxlint" ]; then
+  echo "pre-commit: missing oxlint/oxfmt binaries. Run bun install or npm install first." >&2
+  exit 1
+fi
+
+echo "pre-commit: running format-check and lint"
+bun ./node_modules/.bin/oxfmt --check .
+bun ./node_modules/.bin/oxlint apps/frontend/src apps/backend/src

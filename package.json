@@ -13,10 +13,12 @@
     "lint:fix": "bun run --filter @parrot/frontend lint:fix && bun run --filter @parrot/backend lint:fix",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
+    "prepare": "husky",
     "dev:backend": "bun run --filter @parrot/backend dev",
     "migrate": "bun run --filter @parrot/backend migrate"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "oxfmt": "^0.45.0",
     "oxlint": "^1.60.0",
     "typescript": "^5.9.3"

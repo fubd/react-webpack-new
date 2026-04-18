@@ -187,9 +187,12 @@ bun --hot apps/backend/src/index.ts
 ```bash
 make lint          # oxlint 检查（前后端）
 make format        # oxfmt 统一格式
+make format-check  # oxfmt 格式校验
 make type-check    # tsc --noEmit（前后端）
 make install       # 安装 / 更新依赖（bun install）
 ```
+
+仓库启用了 Husky `pre-commit` hook。提交代码时会自动运行 `oxfmt --check .` 和 `oxlint apps/frontend/src apps/backend/src`。
 
 ---
 
@@ -544,6 +547,7 @@ make help               # 查看所有可用命令
 | `make frontend-build` | 仅构建前端静态资源      |
 | `make lint`           | oxlint 检查             |
 | `make format`         | oxfmt 格式化            |
+| `make format-check`   | oxfmt 格式校验          |
 | `make type-check`     | TypeScript 类型检查     |
 
 ### 部署（生产）
