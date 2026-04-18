@@ -4,6 +4,19 @@ set -eu
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
+# GUI Git clients often do not inherit shell PATH entries like ~/.bun/bin.
+if ! command -v bun >/dev/null 2>&1; then
+  if [ -x "$HOME/.bun/bin/bun" ]; then
+    PATH="$HOME/.bun/bin:$PATH"
+    export PATH
+  fi
+fi
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "pre-commit: bun not found in PATH. Install Bun or add \$HOME/.bun/bin to the Git client's PATH." >&2
+  exit 127
+fi
+
 echo "pre-commit: running format-check and lint"
 bun run format:check
 bun run lint
