@@ -7,7 +7,7 @@ services:
       context: .
       dockerfile: apps/backend/Dockerfile
       args:
-        BASE_BUN_IMAGE: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-bun:1-alpine
+        BASE_BUN_IMAGE: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/base-bun:1-alpine
     restart: unless-stopped
     init: true
     command: ['bun', '--watch', './src/index.ts']
@@ -48,7 +48,7 @@ services:
         max-file: '3'
 
   mysql:
-    image: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-mysql:8.4.4
+    image: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/base-mysql:8.4.4
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
@@ -82,7 +82,7 @@ services:
         max-file: '3'
 
   nginx:
-    image: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/parrot-base-nginx:1.27-alpine
+    image: ${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/base-nginx:1.27-alpine
     restart: unless-stopped
     init: true
     depends_on:

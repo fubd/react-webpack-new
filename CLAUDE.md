@@ -65,7 +65,7 @@ make db-restore BACKUP_FILE=backups/mysql/parrot_20260101_030000.sql.gz
 
 **Backend dev hot reload:** The backend container runs with `bun --watch` and mounts `apps/backend/src/` and `apps/backend/migrations/` as volumes. On Linux (CI/CD, remote servers), file changes trigger automatic process restart. On macOS Docker, VirtioFS does not propagate file system events to inotify, so `--watch` is inactive — use `make restart` instead.
 
-**Base images** are synced to Aliyun ACR via `make ensure-base-images`. Production builds target `linux/amd64`.
+**Base images** are synced to Aliyun ACR via `make sync-base-images`. Shared base repositories use reusable names (`base-bun`, `base-nginx`, `base-mysql`) instead of project-specific prefixes. `make start` assumes those base images already exist in ACR. Production builds target `linux/amd64`.
 
 ## Key Conventions
 

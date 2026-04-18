@@ -1,4 +1,4 @@
-ARG BASE_NGINX_IMAGE=registry.cn-hangzhou.aliyuncs.com/fubd_own/parrot-base-nginx:1.27-alpine
+ARG BASE_NGINX_IMAGE=registry.cn-hangzhou.aliyuncs.com/fubd_own/base-nginx:1.27-alpine
 
 FROM ${BASE_NGINX_IMAGE}
 

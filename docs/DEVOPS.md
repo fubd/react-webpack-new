@@ -13,6 +13,7 @@
 | `make db-backup`                         | 手动本地备份                         |
 | `make db-restore BACKUP_FILE=...`        | 从本地快照恢复                       |
 | `make setup-backup-cron`                 | 安装本地定时备份任务                 |
+| `make sync-base-images`                  | 强制同步共享基础镜像到 ACR           |
 | `make push`                              | 构建并推送 Docker 镜像到 ACR         |
 | `make remote-deploy`                     | 一键完整部署（推镜像 + 同步 + 迁移） |
 | `make remote-rollback`                   | 回滚到上一次部署的版本               |
@@ -85,6 +86,28 @@ make remote-setup-backup-cron
 2. `make remote-sync` — 通过 SSH 同步 `.env`、compose 文件、脚本到服务器
 3. 服务器上拉取镜像 → 启动 MySQL → 执行迁移 → 重启 backend + nginx → 清理旧镜像
 4. `make remote-verify` — 验证健康检查端点，失败则自动回滚
+
+### 场景二点五：手动同步共享基础镜像到 ACR
+
+基础镜像统一使用不带项目名前缀的共享仓库名，方便其他项目复用：
+
+- `${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/base-bun:1-alpine`
+- `${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/base-nginx:1.27-alpine`
+- `${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/base-mysql:8.4.4`
+
+首次初始化 ACR 或怀疑基础镜像缺失时，可手动执行：
+
+```bash
+make sync-base-images
+```
+
+如果只希望在缺失时自动补齐，使用：
+
+```bash
+
+```
+
+本地开发的 `make start` 默认不会再检查 ACR 中的基础镜像是否存在；如果 ACR 尚未初始化，请先手动执行一次 `make sync-base-images`。
 
 ### 场景三：日常版本迭代发布
 

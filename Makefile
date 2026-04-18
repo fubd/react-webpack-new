@@ -28,9 +28,9 @@ export
 endif
 
 IMAGE_NAMESPACE ?= $(ALIYUN_USERNAME)
-BASE_BUN_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-bun:1-alpine
-BASE_NGINX_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-nginx:1.27-alpine
-BASE_MYSQL_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-base-mysql:8.4.4
+BASE_BUN_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/base-bun:1-alpine
+BASE_NGINX_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/base-nginx:1.27-alpine
+BASE_MYSQL_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/base-mysql:8.4.4
 BACKEND_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-backend:$(VERSION)
 NGINX_IMAGE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-nginx:$(VERSION)
 BACKEND_BUILD_CACHE ?= $(ALIYUN_REGISTRY)/$(IMAGE_NAMESPACE)/parrot-backend:buildcache
@@ -45,7 +45,7 @@ NGINX_CACHE_ARGS :=
 endif
 
 .PHONY: help guard-stack-env guard-bun install build frontend-build type-check lint format format-check dev-backend migrate \
-	create-migration compose-migrate start up down restart logs ps watch _ensure-watch _stop-watch acr-login seed-base-images ensure-base-images compose-build push remote-sync \
+	create-migration compose-migrate start up down restart logs ps watch _ensure-watch _stop-watch acr-login sync-base-images compose-build push remote-sync \
 	remote-deploy remote-verify remote-rollback remote-logs db-backup db-restore remote-db-backup remote-db-restore \
 	setup-backup-cron remote-setup-backup-cron
 
@@ -73,8 +73,8 @@ help:
 	@printf "  %-26s %s\n" "setup-backup-cron" "Install a daily backup cron job on this machine"
 	@printf "  %-26s %s\n" "remote-setup-backup-cron" "Install a daily backup cron job on the remote host"
 	@printf "  %-26s %s\n" "acr-login" "Login to Aliyun ACR"
-	@printf "  %-26s %s\n" "seed-base-images" "Force sync base images to ACR"
-	@printf "  %-26s %s\n" "ensure-base-images" "Sync base images to ACR only when missing"
+	@printf "  %-26s %s\n" "sync-base-images" "Force sync shared base images to ACR"
+	
 	@printf "  %-26s %s\n" "push" "Build and push deploy images for $(BUILD_PLATFORMS)"
 	@printf "  %-26s %s\n" "remote-deploy" "Push images, migrate remotely, deploy, and verify"
 	@printf "  %-26s %s\n" "remote-verify" "Check remote compose status and health endpoints"
@@ -230,27 +230,12 @@ remote-setup-backup-cron: remote-sync
 acr-login:
 	@echo "$(ALIYUN_PASSWORD)" | docker login $(ALIYUN_REGISTRY) -u "$(ALIYUN_USERNAME)" --password-stdin
 
-seed-base-images: guard-stack-env acr-login
+sync-base-images: guard-stack-env acr-login
 	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_BUN_IMAGE) docker.io/oven/bun:1-alpine
 	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_NGINX_IMAGE) docker.io/library/nginx:1.27-alpine
 	docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag $(BASE_MYSQL_IMAGE) docker.io/library/mysql:8.4.4
 
-ensure-base-images: guard-stack-env acr-login
-	@for image in \
-		"$(BASE_BUN_IMAGE)|docker.io/oven/bun:1-alpine" \
-		"$(BASE_NGINX_IMAGE)|docker.io/library/nginx:1.27-alpine" \
-		"$(BASE_MYSQL_IMAGE)|docker.io/library/mysql:8.4.4"; do \
-		target="$${image%%|*}"; \
-		source_image="$${image##*|}"; \
-		if docker buildx imagetools inspect "$$target" 2>/dev/null | grep -q "Platform:[[:space:]]*linux/arm64"; then \
-			echo "Using existing multi-arch $$target"; \
-		else \
-			echo "Seeding multi-arch $$target from $$source_image"; \
-			docker buildx imagetools create --platform linux/amd64,linux/arm64 --tag "$$target" "$$source_image"; \
-		fi; \
-	done
-
-compose-build: guard-stack-env ensure-base-images
+compose-build: guard-stack-env
 	$(LOCAL_COMPOSE) build --build-arg BUN_CONFIG_REGISTRY=$(PKG_REGISTRY)
 
 compose-migrate: guard-stack-env
@@ -264,7 +249,7 @@ start: guard-stack-env install frontend-build compose-build compose-migrate
 
 up: start
 
-push: guard-stack-env acr-login ensure-base-images frontend-build
+push: guard-stack-env acr-login frontend-build
 	@attempt=1; \
 	while true; do \
 		docker buildx build --platform $(BUILD_PLATFORMS) --push \

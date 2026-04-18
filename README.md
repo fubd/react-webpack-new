@@ -126,7 +126,7 @@ make start
 
 1. 在宿主机安装 Bun 依赖
 2. 构建前端静态资源到 `apps/frontend/dist/`
-3. 检查并同步阿里云 ACR 基础镜像（首次较慢）
+3. 使用 ACR 中已同步的共享基础镜像构建并启动服务
 4. 按健康检查顺序启动 `mysql → backend → nginx`
 5. 自动执行 SQL 迁移
 6. 在宿主机启动前端 watcher 后台进程
@@ -346,6 +346,28 @@ MySQL 数据存储在 Docker 命名卷 `parrot_mysql-data` 中。
 # VERSION（镜像 tag，如 1.0.0）
 ```
 
+### 手动同步 ACR 基础镜像
+
+项目的基础镜像统一同步到阿里云 ACR，命名不带 `parrot` 前缀，方便其他项目复用：
+
+- `${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/base-bun:1-alpine`
+- `${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/base-nginx:1.27-alpine`
+- `${ALIYUN_REGISTRY}/${IMAGE_NAMESPACE}/base-mysql:8.4.4`
+
+手动强制同步全部基础镜像：
+
+```bash
+make sync-base-images
+```
+
+如果只想在缺失时自动补齐，继续使用：
+
+```bash
+make ensure-base-images
+```
+
+日常 `make start` 默认**不再检查** ACR 中的基础镜像是否存在，前提是你已经手动同步过一次。`make push` 仍会自动检查并在缺失时补齐。
+
 ### 一键发布到生产
 
 ```bash
@@ -553,6 +575,7 @@ make help               # 查看所有可用命令
 | 命令                                     | 说明                                     |
 | ---------------------------------------- | ---------------------------------------- |
 | `make push`                              | 构建并推送 Docker 镜像到 ACR             |
+| `make sync-base-images`                  | 强制同步共享基础镜像到 ACR               |
 | `make remote-deploy`                     | 一键完整部署（包含推镜像 + 同步 + 迁移） |
 | `make remote-rollback`                   | 回滚到上一次部署的版本                   |
 | `make remote-verify`                     | 验证远端服务健康状态                     |
@@ -565,9 +588,23 @@ make help               # 查看所有可用命令
 
 ## 常见问题
 
-### `make start` / `make push` / `make remote-deploy` 卡在 "Seeding multi-arch image..."
+### `make push` / `make remote-deploy` 卡在 "Syncing multi-arch image..."
 
-项目会先把官方基础镜像同步到阿里云 ACR，网络较慢时耗时较长（10~30 分钟）。这是为了确保本地和生产都基于同一套 ACR 底层镜像。
+项目会先把官方基础镜像同步到阿里云 ACR，网络较慢时耗时较长（10~30 分钟）。这是为了确保本地和生产都基于同一套可复用 ACR 基础镜像。
+
+### `make start` 提示基础镜像不存在或拉取失败
+
+说明当前 ACR 中还没有同步所需的共享基础镜像。先手动执行一次：
+
+```bash
+make sync-base-images
+```
+
+同步完成后再重新执行：
+
+```bash
+make start
+```
 
 ### 后端启动报 "Database connection failed"
 
