@@ -4,29 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Parrot is a full-stack monorepo: Bun + Hono backend, React 19 + Ant Design 6 frontend, MySQL 8.4, Nginx gateway. All operations go through `make` targets. The host machine requires only Docker and make — no Node.js or Bun needed.
+Parrot is a full-stack monorepo: Bun + Hono backend, React 19 + Ant Design 6 frontend, MySQL 8.4, Nginx gateway. All operations go through `make` targets. The host machine requires Docker, Bun, and make. Docker runs the services; Bun on the host handles installs, builds, checks, and the frontend watcher.
 
 ## Common Commands
 
 ```bash
-make up                  # Install deps, build frontend, build images, migrate DB, start stack + watcher
+make start               # Install deps, build frontend, build images, migrate DB, start stack + watcher
+make up                  # Alias of make start
 make down                # Stop watcher and Docker stack
-make restart             # Recreate backend + nginx containers, restart watcher
-make install             # bun install inside Docker dev container
-make lint                # oxlint (both apps) inside Docker
-make format              # oxfmt across the repo inside Docker
-make type-check          # tsc --noEmit (both apps) inside Docker
-make frontend-build      # Build frontend assets inside Docker
+make restart             # Recreate backend + nginx containers, rerun migrations, restart watcher
+make install             # bun install on host machine
+make lint                # oxlint (both apps) on host machine
+make format              # oxfmt across the repo on host machine
+make format-check        # oxfmt format check on host machine
+make type-check          # tsc --noEmit (both apps) on host machine
+make frontend-build      # Build frontend assets on host machine
+make watch               # Foreground frontend watcher on host machine
 make logs                # Tail all container logs
 make ps                  # Show container status
-```
-
-Frontend watcher (runs in Docker container `parrot-watch`, uses polling for macOS compatibility):
-
-```bash
-make start-watch         # Start background watcher
-make stop-watch          # Stop watcher
-make watch               # Foreground watcher
 ```
 
 Database:
@@ -64,9 +59,9 @@ make db-restore BACKUP_FILE=backups/mysql/parrot_20260101_030000.sql.gz
 
 **Docker setup:**
 
-- `docker-compose.yml` — Local dev: backend (bun), mysql, nginx, dev (`oven/bun:1-alpine` for builds/lint/type-check). Nginx mounts host `./apps/frontend/dist` for hot reload from watcher.
+- `docker-compose.yml` — Local dev: backend (bun), mysql, nginx, dev helper container. Nginx mounts host `./apps/frontend/dist` and serves whatever the host-side Bun watcher builds there.
 - `docker-compose.deploy.yml` — Production: same services minus dev container and build contexts. Nginx image just copies pre-built frontend assets (no bun needed in nginx image). Frontend is built natively before `docker buildx`, avoiding slow cross-platform installs.
-- `dev` service: `DOCKER_DEV=1` env var enables rspack polling (`watchOptions.poll: 1000`) for file watching inside Docker on macOS.
+- `dev` service: kept as an auxiliary Bun container for ad hoc compose tasks, but day-to-day development commands now run on the host.
 
 **Backend dev hot reload:** The backend container runs with `bun --watch` and mounts `apps/backend/src/` and `apps/backend/migrations/` as volumes. On Linux (CI/CD, remote servers), file changes trigger automatic process restart. On macOS Docker, VirtioFS does not propagate file system events to inotify, so `--watch` is inactive — use `make restart` instead.
 
@@ -78,5 +73,5 @@ make db-restore BACKUP_FILE=backups/mysql/parrot_20260101_030000.sql.gz
 - **Migrations:** Only add new files in `apps/backend/migrations/` with `NNNN_description.sql` naming. Never modify existing migration files. Use `make create-migration NAME=...` to get auto-numbered files.
 - **SQL:** Raw SQL via `Bun.sql` tagged templates, no query builders or ORMs. Type results with inline `TypeRow[]` generics.
 - **Environment variables:** Backend reads from `process.env` via `env.ts` with validation and defaults. Inside Docker, `DATABASE_HOST` is overridden to `mysql`. All secrets live in `.env` (gitignored).
-- **Makefile `$(DEV_RUN)`:** Expands to `docker compose --env-file .env -f docker-compose.yml run --rm dev`. All bun-based commands (install, build, lint, type-check) use this.
-- **Backend changes require image rebuild:** Backend code is copied into the Docker image at build time. After modifying `apps/backend/src/`, run `make compose-build` then `make restart` (or just `make up`).
+- **Host-first workflow:** `make install`, `make build`, `make frontend-build`, `make lint`, `make format`, `make format-check`, `make type-check`, and `make watch` all run through host Bun. The watcher lifecycle is managed internally by `make start`, `make down`, and `make restart`.
+- **Backend changes on macOS:** Source is bind-mounted into the container, so backend edits take effect after `make restart`; no extra image rebuild is required for normal code changes.

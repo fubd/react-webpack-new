@@ -53,7 +53,7 @@ docker compose --env-file .env exec mysql \
 **注意**：
 
 - 永远不要修改已有的迁移文件，只新增
-- `make up` / `make restart` 都会自动执行迁移，无需手动操作
+- `make start` / `make up` / `make restart` 都会自动执行迁移，无需手动操作
 - 迁移是幂等的，已执行过不会重复跑
 
 ### 场景二：首次部署到生产服务器
@@ -193,7 +193,7 @@ make remote-setup-backup-cron
 **不要用 DataGrip 等工具直接改表结构。** 原因：
 
 - 迁移系统通过 `schema_migrations` 表记录已执行的变更，GUI 工具绕过了这个机制
-- 直接改库后，其他开发者 `make up` 不会拿到你的变更，生产部署也不会执行
+- 直接改库后，其他开发者 `make start` / `make up` 不会拿到你的变更，生产部署也不会执行
 - 迁移文件是唯一的数据库结构变更来源，它就是"数据库的 Git"
 
 **DataGrip 可以做的事**：
@@ -437,11 +437,11 @@ make remote-sync
 
 ### 架构说明
 
-| 场景                   | 架构   | 说明                                       |
-| ---------------------- | ------ | ------------------------------------------ |
-| 本地开发 (`make up`)   | ARM64  | 使用本机架构直接构建运行                   |
-| 生产构建 (`make push`) | AMD64  | `BUILD_PLATFORMS ?= linux/amd64`，交叉编译 |
-| 基础镜像 (ACR)         | 双架构 | `linux/amd64,linux/arm64` 都同步到 ACR     |
+| 场景                    | 架构   | 说明                                       |
+| ----------------------- | ------ | ------------------------------------------ |
+| 本地开发 (`make start`) | ARM64  | 使用本机架构直接构建运行                   |
+| 生产构建 (`make push`)  | AMD64  | `BUILD_PLATFORMS ?= linux/amd64`，交叉编译 |
+| 基础镜像 (ACR)          | 双架构 | `linux/amd64,linux/arm64` 都同步到 ACR     |
 
 ---
 

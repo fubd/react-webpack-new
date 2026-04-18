@@ -31,17 +31,17 @@ Browser
 
 ## 技术栈
 
-| 层       | 技术                          | 说明                                                          |
-| -------- | ----------------------------- | ------------------------------------------------------------- |
-| 前端     | React 19 + Rsbuild            | Rspack 驱动，极速编译；核心包通过 CDN 加载（classic runtime） |
-| 前端     | Ant Design 6 + React Router 7 | UI 组件库 v6 + 客户端路由（懒加载 + 404 兜底）                |
-| 前端     | CSS Modules（`.module.less`） | 组件样式自动作用域隔离，避免全局污染                          |
-| 后端     | Bun + Hono                    | 原生 HTTP server，零依赖 SQL 驱动（`Bun.sql`，内置连接池）    |
-| 数据库   | MySQL 8.4                     | 原生 SQL，无 ORM                                              |
-| 网关     | Nginx 1.27                    | Gzip 压缩 + 静态资源缓存 + API 反向代理                       |
-| 编排     | Docker Compose + Makefile     | 本地开发 & 生产部署统一入口；宿主机无需 Node.js               |
-| 镜像仓库 | 阿里云 ACR                    | 支持 `linux/amd64` 和 `arm64` 双架构                          |
-| 语言     | TypeScript 5.9（strict）      | 前后端统一 oxlint + oxfmt 规范                                |
+| 层       | 技术                          | 说明                                                                    |
+| -------- | ----------------------------- | ----------------------------------------------------------------------- |
+| 前端     | React 19 + Rsbuild            | Rspack 驱动，极速编译；核心包通过 CDN 加载（classic runtime）           |
+| 前端     | Ant Design 6 + React Router 7 | UI 组件库 v6 + 客户端路由（懒加载 + 404 兜底）                          |
+| 前端     | CSS Modules（`.module.less`） | 组件样式自动作用域隔离，避免全局污染                                    |
+| 后端     | Bun + Hono                    | 原生 HTTP server，零依赖 SQL 驱动（`Bun.sql`，内置连接池）              |
+| 数据库   | MySQL 8.4                     | 原生 SQL，无 ORM                                                        |
+| 网关     | Nginx 1.27                    | Gzip 压缩 + 静态资源缓存 + API 反向代理                                 |
+| 编排     | Docker Compose + Makefile     | 本地开发 & 生产部署统一入口；Docker 负责服务，宿主机 Bun 负责构建与监听 |
+| 镜像仓库 | 阿里云 ACR                    | 支持 `linux/amd64` 和 `arm64` 双架构                                    |
+| 语言     | TypeScript 5.9（strict）      | 前后端统一 oxlint + oxfmt 规范                                          |
 
 ---
 
@@ -101,10 +101,11 @@ parrot/
 | 工具           | 版本要求 | 说明                              |
 | -------------- | -------- | --------------------------------- |
 | Docker Desktop | 最新版   | 包含 `docker compose` 和 `buildx` |
+| Bun            | >= 1.0   | 本地构建、前端 watcher、代码检查  |
 | make           | 系统自带 | macOS / Linux 均已内置            |
 | SSH 密钥       | —        | 远端部署时需要免密登录目标服务器  |
 
-> 宿主机无需安装 Node.js 或 Bun，所有构建和代码检查均在 Docker 容器内完成。
+> 本地开发默认要求宿主机安装 Bun。Docker 负责运行 `mysql / backend / nginx`，宿主机负责前端构建、watcher 和代码质量检查。
 
 ### 第一次启动
 
@@ -118,17 +119,17 @@ cp .env.example .env
 # 以及 ALIYUN_* 相关字段（本地构建底层镜像与部署都会用到）
 
 # 3. 一键启动
-make up
+make start
 ```
 
-`make up` 会依次完成：
+`make start` 会依次完成：
 
-1. 在 Docker 容器内安装 Bun 依赖
+1. 在宿主机安装 Bun 依赖
 2. 构建前端静态资源到 `apps/frontend/dist/`
 3. 检查并同步阿里云 ACR 基础镜像（首次较慢）
 4. 按健康检查顺序启动 `mysql → backend → nginx`
 5. 自动执行 SQL 迁移
-6. 启动前端 watcher 容器
+6. 在宿主机启动前端 watcher 后台进程
 
 启动后访问：**http://localhost:26033**
 
@@ -138,23 +139,21 @@ make up
 
 ### 修改前端
 
-前端 watcher 在 Docker 容器内以轮询模式运行（因为 macOS Docker 不转发 inotify 事件）。`make up` 和 `make restart` 会自动启动 watcher 容器：
+前端 watcher 运行在宿主机，由 Bun 直接监听 `apps/frontend/src/` 变化并重新输出到 `apps/frontend/dist/`。`make start`、`make up` 和 `make restart` 都会自动确保 watcher 在运行：
 
 ```bash
-# watcher 已随 make up / make restart 自动启动，直接编辑 apps/frontend/src/ 下的文件
-# 保存 → watcher 自动重新编译到 dist/（轮询间隔 1 秒）
+# watcher 已随 make start / make restart 自动启动，直接编辑 apps/frontend/src/ 下的文件
+# 保存 → watcher 自动重新编译到 dist/
 # 浏览器刷新 http://localhost:26033 即可看到效果
 ```
 
-手动管理 watcher：
+`make start`、`make down` 和 `make restart` 会自动管理后台 watcher。如需前台查看实时编译输出：
 
 ```bash
-make start-watch    # 启动后台 watcher（Docker 容器 parrot-watch）
-make stop-watch     # 停止 watcher
-make watch          # 前台运行 watcher（可看到实时编译输出）
+make watch
 ```
 
-无需重启任何容器。
+后台 watcher 日志默认写入仓库根目录的 `.watch.log`。
 
 ### 修改后端
 
@@ -182,7 +181,7 @@ bun --hot apps/backend/src/index.ts
 
 ### 代码检查与类型校验
 
-所有命令均在 Docker 容器内执行，宿主机无需安装 Node.js 或 Bun：
+以下命令都直接在宿主机通过 Bun 执行：
 
 ```bash
 make lint          # oxlint 检查（前后端）
@@ -243,7 +242,7 @@ make compose-migrate
 make migrate
 ```
 
-迁移在每次 `make up` / `make restart` 时也会自动触发。
+迁移在每次 `make start` / `make up` / `make restart` 时也会自动触发。
 
 ### 查看当前迁移状态
 
@@ -516,17 +515,16 @@ make help               # 查看所有可用命令
 
 ### 开发
 
-| 命令               | 说明                                         |
-| ------------------ | -------------------------------------------- |
-| `make up`          | 构建并启动完整本地栈 + 后台 watcher          |
-| `make down`        | 停止 watcher 和 Docker 栈                    |
-| `make restart`     | 重启 backend + nginx + watcher（不重建镜像） |
-| `make logs`        | 实时查看所有服务日志                         |
-| `make ps`          | 查看服务运行状态                             |
-| `make dev-backend` | 在 Docker 中启动后端（重建容器）             |
-| `make watch`       | 前台运行前端 watcher                         |
-| `make start-watch` | 启动后台前端 watcher                         |
-| `make stop-watch`  | 停止前端 watcher                             |
+| 命令               | 说明                                                       |
+| ------------------ | ---------------------------------------------------------- |
+| `make start`       | 安装依赖、构建前端、构建镜像、执行迁移，并启动本地开发环境 |
+| `make up`          | `make start` 的兼容别名                                    |
+| `make down`        | 停止本地 watcher 和 Docker 栈                              |
+| `make restart`     | 重新执行迁移并重启 backend + nginx，随后确保 watcher 存活  |
+| `make logs`        | 实时查看所有服务日志                                       |
+| `make ps`          | 查看服务运行状态                                           |
+| `make dev-backend` | 在 Docker 中启动后端（重建容器）                           |
+| `make watch`       | 前台运行前端 watcher                                       |
 
 ### 数据库
 
@@ -543,8 +541,8 @@ make help               # 查看所有可用命令
 | 命令                  | 说明                    |
 | --------------------- | ----------------------- |
 | `make install`        | 安装所有 workspace 依赖 |
-| `make build`          | 构建前端 + 后端         |
-| `make frontend-build` | 仅构建前端静态资源      |
+| `make build`          | 运行工作区构建脚本      |
+| `make frontend-build` | 构建前端静态资源        |
 | `make lint`           | oxlint 检查             |
 | `make format`         | oxfmt 格式化            |
 | `make format-check`   | oxfmt 格式校验          |
@@ -567,7 +565,7 @@ make help               # 查看所有可用命令
 
 ## 常见问题
 
-### `make up` / `make push` / `make remote-deploy` 卡在 "Seeding multi-arch image..."
+### `make start` / `make push` / `make remote-deploy` 卡在 "Seeding multi-arch image..."
 
 项目会先把官方基础镜像同步到阿里云 ACR，网络较慢时耗时较长（10~30 分钟）。这是为了确保本地和生产都基于同一套 ACR 底层镜像。
 
@@ -582,7 +580,7 @@ make logs
 # 检查 .env 中的密码是否与容器匹配
 # 如果改过密码但容器已有旧数据卷，需要先删卷重建：
 docker compose --env-file .env down -v   # ⚠️ 会清空数据
-make up
+make start
 ```
 
 ### 迁移报错 "Table already exists"
@@ -605,9 +603,9 @@ make logs     # 查看错误日志
 
 ### 前端改了代码但页面没有变化
 
-1. 确认 watcher 容器在运行：`docker ps --filter "name=parrot-watch"`
-2. 查看 watcher 日志：`docker logs parrot-watch`
-3. 如果 watcher 未运行，执行 `make start-watch`
+1. 查看 watcher 日志：`tail -f .watch.log`
+2. 重新执行 `make start`，确认 watcher 被自动拉起
+3. 如需前台观察编译过程，执行 `make watch`
 
 ### 想修改 Nginx 端口
 

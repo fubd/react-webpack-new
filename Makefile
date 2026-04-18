@@ -17,8 +17,9 @@ BUILD_RETRY_DELAY ?= 5
 PUSH_BUILD_CACHE ?= 0
 
 LOCAL_COMPOSE := $(COMPOSE) --env-file $(STACK_ENV_FILE) -f $(LOCAL_COMPOSE_FILE)
-DEV_RUN = $(LOCAL_COMPOSE) run --rm dev
 WATCH_CONTAINER := parrot-watch
+WATCH_PID_FILE ?= .watch.pid
+WATCH_LOG_FILE ?= .watch.log
 REMOTE_COMPOSE := docker compose --env-file .env --env-file $(REMOTE_RELEASE_ENV_FILE) -f $(DEPLOY_COMPOSE_FILE)
 
 ifneq (,$(wildcard $(STACK_ENV_FILE)))
@@ -43,15 +44,22 @@ BACKEND_CACHE_ARGS :=
 NGINX_CACHE_ARGS :=
 endif
 
-.PHONY: help guard-stack-env install build frontend-build type-check lint format format-check dev-backend migrate \
-	create-migration compose-migrate up down restart logs ps watch start-watch stop-watch acr-login seed-base-images ensure-base-images compose-build push remote-sync \
+.PHONY: help guard-stack-env guard-bun install build frontend-build type-check lint format format-check dev-backend migrate \
+	create-migration compose-migrate start up down restart logs ps watch _ensure-watch _stop-watch acr-login seed-base-images ensure-base-images compose-build push remote-sync \
 	remote-deploy remote-verify remote-rollback remote-logs db-backup db-restore remote-db-backup remote-db-restore \
 	setup-backup-cron remote-setup-backup-cron
 
 help:
 	@printf "\nAvailable targets:\n"
-	@printf "  %-26s %s\n" "install" "Install all workspace dependencies"
-	@printf "  %-26s %s\n" "build" "Build frontend and backend"
+	@printf "  %-26s %s\n" "start" "Install deps, build frontend, build images, migrate DB, start stack + watcher"
+	@printf "  %-26s %s\n" "up" "Alias of start"
+	@printf "  %-26s %s\n" "down" "Stop watcher and docker compose stack"
+	@printf "  %-26s %s\n" "restart" "Restart backend + nginx, re-run migrations, ensure watcher"
+	@printf "  %-26s %s\n" "watch" "Run the frontend watcher in foreground"
+	@printf "  %-26s %s\n" "logs" "Tail compose logs"
+	@printf "  %-26s %s\n" "ps" "Show compose service status"
+	@printf "  %-26s %s\n" "install" "Install all workspace dependencies on the host"
+	@printf "  %-26s %s\n" "build" "Run the workspace build script on the host"
 	@printf "  %-26s %s\n" "frontend-build" "Build frontend assets for nginx to serve"
 	@printf "  %-26s %s\n" "type-check" "Run TypeScript checks for both apps"
 	@printf "  %-26s %s\n" "lint" "Run oxlint for both apps"
@@ -60,14 +68,6 @@ help:
 	@printf "  %-26s %s\n" "dev-backend" "Start the backend in Docker (recreates container)"
 	@printf "  %-26s %s\n" "migrate" "Run backend SQL migrations (via compose-migrate)"
 	@printf "  %-26s %s\n" "create-migration" "Create a numbered migration file (NAME=required)"
-	@printf "  %-26s %s\n" "up" "Build images, migrate DB, start stack + watcher"
-	@printf "  %-26s %s\n" "down" "Stop watcher and docker compose stack"
-	@printf "  %-26s %s\n" "restart" "Restart stack + watcher (no rebuild)"
-	@printf "  %-26s %s\n" "logs" "Tail compose logs"
-	@printf "  %-26s %s\n" "ps" "Show compose service status"
-	@printf "  %-26s %s\n" "watch" "Start frontend watcher (foreground)"
-	@printf "  %-26s %s\n" "start-watch" "Start frontend watcher (background Docker container)"
-	@printf "  %-26s %s\n" "stop-watch" "Stop frontend watcher"
 	@printf "  %-26s %s\n" "db-backup" "Create a compressed MySQL backup under $(BACKUP_DIR)"
 	@printf "  %-26s %s\n" "db-restore" "Restore MySQL from BACKUP_FILE=/path/to/dump.sql.gz"
 	@printf "  %-26s %s\n" "setup-backup-cron" "Install a daily backup cron job on this machine"
@@ -86,26 +86,29 @@ help:
 guard-stack-env:
 	@test -f $(STACK_ENV_FILE) || (echo "Missing $(STACK_ENV_FILE). Copy .env.example to $(STACK_ENV_FILE) and fill it first." && exit 1)
 
-install:
-	$(DEV_RUN) bun install
+guard-bun:
+	@command -v bun >/dev/null || (echo "Bun is not installed on this host. Install it: https://bun.sh" && exit 1)
 
-build:
-	$(DEV_RUN) bun run build
+install: guard-bun
+	bun install
 
-frontend-build:
-	$(DEV_RUN) bun run build:frontend
+build: guard-bun
+	bun run build
 
-type-check:
-	$(DEV_RUN) bun run type-check
+frontend-build: guard-bun
+	bun run build:frontend
 
-lint:
-	$(DEV_RUN) bun run lint
+type-check: guard-bun
+	bun run type-check
 
-format:
-	$(DEV_RUN) bun run format
+lint: guard-bun
+	bun run lint
 
-format-check:
-	$(DEV_RUN) bun run format:check
+format: guard-bun
+	bun run format
+
+format-check: guard-bun
+	bun run format:check
 
 dev-backend:
 	@$(LOCAL_COMPOSE) up -d --force-recreate backend
@@ -124,31 +127,62 @@ endif
 	echo "Created: $$file"
 
 # ── frontend watcher ────────────────────────────────────────────
-# Runs inside the Docker dev container with polling-based file
-# watching (DOCKER_DEV=1 enables rspack watchOptions.poll).
+# Runs on the host with Bun so file changes are visible immediately
+# to nginx, which mounts apps/frontend/dist from the host.
 
-watch:
-	$(DEV_RUN) bun run --filter @parrot/frontend watch
+watch: guard-bun _stop-watch
+	bun run --filter @parrot/frontend watch
 
-start-watch:
-	@if docker ps -q --filter "name=$(WATCH_CONTAINER)" | grep -q .; then \
-		echo "Watcher already running"; \
+_ensure-watch: guard-bun
+	@if docker ps -aq --filter "name=$(WATCH_CONTAINER)" | grep -q .; then \
+		docker stop $(WATCH_CONTAINER) >/dev/null 2>&1 || true; \
+		docker rm $(WATCH_CONTAINER) >/dev/null 2>&1 || true; \
+	fi
+	@if [ -f "$(WATCH_PID_FILE)" ] && kill -0 "$$(cat "$(WATCH_PID_FILE)")" 2>/dev/null; then \
+		echo "Watcher already running (pid $$(cat "$(WATCH_PID_FILE)"))"; \
 	else \
-		$(LOCAL_COMPOSE) run -d --name $(WATCH_CONTAINER) --no-deps dev bun run --filter @parrot/frontend watch; \
-		echo "Watcher started in container '$(WATCH_CONTAINER)'"; \
+		rm -f "$(WATCH_PID_FILE)"; \
+		nohup bun run --filter @parrot/frontend watch >>"$(WATCH_LOG_FILE)" 2>&1 & echo $$! >"$(WATCH_PID_FILE)"; \
+		sleep 1; \
+		if [ -f "$(WATCH_PID_FILE)" ] && kill -0 "$$(cat "$(WATCH_PID_FILE)")" 2>/dev/null; then \
+			echo "Watcher started (pid $$(cat "$(WATCH_PID_FILE)")). Logs: $(WATCH_LOG_FILE)"; \
+		else \
+			echo "Watcher failed to start. Check $(WATCH_LOG_FILE)" >&2; \
+			rm -f "$(WATCH_PID_FILE)"; \
+			exit 1; \
+		fi; \
 	fi
 
-stop-watch:
-	@docker stop $(WATCH_CONTAINER) 2>/dev/null && docker rm $(WATCH_CONTAINER) 2>/dev/null && echo "Watcher stopped" || echo "Watcher not running"
+_stop-watch:
+	@stopped=0; \
+	if [ -f "$(WATCH_PID_FILE)" ]; then \
+		pid="$$(cat "$(WATCH_PID_FILE)")"; \
+		if kill -0 "$$pid" 2>/dev/null; then \
+			kill "$$pid" >/dev/null 2>&1 || true; \
+			wait "$$pid" 2>/dev/null || true; \
+			stopped=1; \
+		fi; \
+		rm -f "$(WATCH_PID_FILE)"; \
+	fi; \
+	if docker ps -aq --filter "name=$(WATCH_CONTAINER)" | grep -q .; then \
+		docker stop $(WATCH_CONTAINER) >/dev/null 2>&1 || true; \
+		docker rm $(WATCH_CONTAINER) >/dev/null 2>&1 || true; \
+		stopped=1; \
+	fi; \
+	if [ "$$stopped" -eq 1 ]; then \
+		echo "Watcher stopped"; \
+	else \
+		echo "Watcher not running"; \
+	fi
 
 # ── compose lifecycle ───────────────────────────────────────────
 
-down: guard-stack-env stop-watch
+down: guard-stack-env _stop-watch
 	$(LOCAL_COMPOSE) down
 
-restart: guard-stack-env stop-watch
+restart: guard-stack-env _stop-watch compose-migrate
 	$(LOCAL_COMPOSE) up -d --force-recreate backend nginx
-	@$(MAKE) start-watch
+	@$(MAKE) _ensure-watch
 
 logs: guard-stack-env
 	$(LOCAL_COMPOSE) logs -f --tail=200
@@ -224,9 +258,11 @@ compose-migrate: guard-stack-env
 	$(LOCAL_COMPOSE) up -d --wait mysql
 	$(LOCAL_COMPOSE) run --rm --no-deps backend bun run migrate
 
-up: install frontend-build compose-build compose-migrate
+start: guard-stack-env install frontend-build compose-build compose-migrate
 	$(LOCAL_COMPOSE) up -d --remove-orphans backend nginx
-	@$(MAKE) start-watch
+	@$(MAKE) _ensure-watch
+
+up: start
 
 push: guard-stack-env acr-login ensure-base-images frontend-build
 	@attempt=1; \
