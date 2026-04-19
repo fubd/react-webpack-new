@@ -108,17 +108,6 @@ services:
         max-size: '10m'
         max-file: '3'
 
-  dev:
-    image: oven/bun:1-alpine
-    working_dir: /app
-    environment:
-      BUN_CONFIG_REGISTRY: ${PKG_REGISTRY:-https://registry.npmmirror.com}
-      DOCKER_DEV: '1'
-    volumes:
-      - .:/app
-    networks:
-      - parrot
-
 volumes:
   mysql-data:
 

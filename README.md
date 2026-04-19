@@ -139,7 +139,7 @@ make start
 
 ### 修改前端
 
-前端 watcher 运行在宿主机，由 Bun 直接监听 `apps/frontend/src/` 变化并重新输出到 `apps/frontend/dist/`。`make start`、`make up` 和 `make restart` 都会自动确保 watcher 在运行：
+前端 watcher 运行在宿主机，由 Bun 直接监听 `apps/frontend/src/` 变化并重新输出到 `apps/frontend/dist/`。`make start` 和 `make restart` 都会自动确保 watcher 在运行：
 
 ```bash
 # watcher 已随 make start / make restart 自动启动，直接编辑 apps/frontend/src/ 下的文件
@@ -237,12 +237,7 @@ CREATE TABLE users (
 ```bash
 # 在容器内执行迁移（推荐，环境与生产一致）
 make compose-migrate
-
-# make migrate 是 compose-migrate 的别名
-make migrate
 ```
-
-迁移在每次 `make start` / `make up` / `make restart` 时也会自动触发。
 
 ### 查看当前迁移状态
 
@@ -540,7 +535,6 @@ make help               # 查看所有可用命令
 | 命令               | 说明                                                       |
 | ------------------ | ---------------------------------------------------------- |
 | `make start`       | 安装依赖、构建前端、构建镜像、执行迁移，并启动本地开发环境 |
-| `make up`          | `make start` 的兼容别名                                    |
 | `make down`        | 停止本地 watcher 和 Docker 栈                              |
 | `make restart`     | 重新执行迁移并重启 backend + nginx，随后确保 watcher 存活  |
 | `make logs`        | 实时查看所有服务日志                                       |
@@ -550,13 +544,12 @@ make help               # 查看所有可用命令
 
 ### 数据库
 
-| 命令                              | 说明                               |
-| --------------------------------- | ---------------------------------- |
-| `make migrate`                    | 执行迁移（等同于 compose-migrate） |
-| `make compose-migrate`            | 在容器内执行迁移                   |
-| `make db-backup`                  | 手动本地备份                       |
-| `make db-restore BACKUP_FILE=...` | 从本地快照恢复                     |
-| `make setup-backup-cron`          | 安装本地定时备份 cron job          |
+| 命令                              | 说明                      |
+| --------------------------------- | ------------------------- |
+| `make compose-migrate`            | 在容器内执行迁移          |
+| `make db-backup`                  | 手动本地备份              |
+| `make db-restore BACKUP_FILE=...` | 从本地快照恢复            |
+| `make setup-backup-cron`          | 安装本地定时备份 cron job |
 
 ### 构建与代码质量
 

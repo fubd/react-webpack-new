@@ -44,15 +44,13 @@ BACKEND_CACHE_ARGS :=
 NGINX_CACHE_ARGS :=
 endif
 
-.PHONY: help guard-stack-env guard-bun install build frontend-build type-check lint format format-check dev-backend migrate \
-	create-migration compose-migrate start up down restart logs ps watch _ensure-watch _stop-watch acr-login sync-base-images compose-build push remote-sync \
+.PHONY: help guard-stack-env guard-bun install build frontend-build type-check lint format format-check dev-backend create-migration compose-migrate start down restart logs ps watch _ensure-watch _stop-watch acr-login sync-base-images compose-build push remote-sync \
 	remote-deploy remote-verify remote-rollback remote-logs db-backup db-restore remote-db-backup remote-db-restore \
 	setup-backup-cron remote-setup-backup-cron
 
 help:
 	@printf "\nAvailable targets:\n"
 	@printf "  %-26s %s\n" "start" "Install deps, build frontend, build images, migrate DB, start stack + watcher"
-	@printf "  %-26s %s\n" "up" "Alias of start"
 	@printf "  %-26s %s\n" "down" "Stop watcher and docker compose stack"
 	@printf "  %-26s %s\n" "restart" "Restart backend + nginx, re-run migrations, ensure watcher"
 	@printf "  %-26s %s\n" "watch" "Run the frontend watcher in foreground"
@@ -66,7 +64,6 @@ help:
 	@printf "  %-26s %s\n" "format" "Run oxfmt across the repository"
 	@printf "  %-26s %s\n" "format-check" "Check formatting with oxfmt"
 	@printf "  %-26s %s\n" "dev-backend" "Start the backend in Docker (recreates container)"
-	@printf "  %-26s %s\n" "migrate" "Run backend SQL migrations (via compose-migrate)"
 	@printf "  %-26s %s\n" "create-migration" "Create a numbered migration file (NAME=required)"
 	@printf "  %-26s %s\n" "db-backup" "Create a compressed MySQL backup under $(BACKUP_DIR)"
 	@printf "  %-26s %s\n" "db-restore" "Restore MySQL from BACKUP_FILE=/path/to/dump.sql.gz"
@@ -112,8 +109,6 @@ format-check: guard-bun
 
 dev-backend:
 	@$(LOCAL_COMPOSE) up -d --force-recreate backend
-
-migrate: compose-migrate
 
 create-migration:
 ifndef NAME
@@ -246,8 +241,6 @@ compose-migrate: guard-stack-env
 start: guard-stack-env install frontend-build compose-build compose-migrate
 	$(LOCAL_COMPOSE) up -d --remove-orphans backend nginx
 	@$(MAKE) _ensure-watch
-
-up: start
 
 push: guard-stack-env acr-login frontend-build
 	@attempt=1; \

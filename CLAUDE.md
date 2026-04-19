@@ -10,7 +10,6 @@ Parrot is a full-stack monorepo: Bun + Hono backend, React 19 + Ant Design 6 fro
 
 ```bash
 make start               # Install deps, build frontend, build images, migrate DB, start stack + watcher
-make up                  # Alias of make start
 make down                # Stop watcher and Docker stack
 make restart             # Recreate backend + nginx containers, rerun migrations, restart watcher
 make install             # bun install on host machine
@@ -28,7 +27,6 @@ Database:
 
 ```bash
 make create-migration NAME=add_users_table   # Auto-numbered SQL migration file
-make migrate                                  # Run migrations (alias for compose-migrate)
 make compose-migrate                          # Run migrations in backend container
 make db-backup                                # Backup to backups/mysql/
 make db-restore BACKUP_FILE=backups/mysql/parrot_20260101_030000.sql.gz
@@ -59,9 +57,8 @@ make db-restore BACKUP_FILE=backups/mysql/parrot_20260101_030000.sql.gz
 
 **Docker setup:**
 
-- `docker-compose.yml` — Local dev: backend (bun), mysql, nginx, dev helper container. Nginx mounts host `./apps/frontend/dist` and serves whatever the host-side Bun watcher builds there.
-- `docker-compose.deploy.yml` — Production: same services minus dev container and build contexts. Nginx image just copies pre-built frontend assets (no bun needed in nginx image). Frontend is built natively before `docker buildx`, avoiding slow cross-platform installs.
-- `dev` service: kept as an auxiliary Bun container for ad hoc compose tasks, but day-to-day development commands now run on the host.
+- `docker-compose.yml` — Local dev: backend (bun), mysql, nginx. Nginx mounts host `./apps/frontend/dist` and serves whatever the host-side Bun watcher builds there.
+- `docker-compose.deploy.yml` — Production: same services minus dev container. Nginx image just copies pre-built frontend assets.
 
 **Backend dev hot reload:** The backend container runs with `bun --watch` and mounts `apps/backend/src/` and `apps/backend/migrations/` as volumes. On Linux (CI/CD, remote servers), file changes trigger automatic process restart. On macOS Docker, VirtioFS does not propagate file system events to inotify, so `--watch` is inactive — use `make restart` instead.
 

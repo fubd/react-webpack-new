@@ -54,7 +54,7 @@ docker compose --env-file .env exec mysql \
 **注意**：
 
 - 永远不要修改已有的迁移文件，只新增
-- `make start` / `make up` / `make restart` 都会自动执行迁移，无需手动操作
+- `make start` / `make restart` 都会自动执行迁移，无需手动操作
 - 迁移是幂等的，已执行过不会重复跑
 
 ### 场景二：首次部署到生产服务器
@@ -216,7 +216,7 @@ make remote-setup-backup-cron
 **不要用 DataGrip 等工具直接改表结构。** 原因：
 
 - 迁移系统通过 `schema_migrations` 表记录已执行的变更，GUI 工具绕过了这个机制
-- 直接改库后，其他开发者 `make start` / `make up` 不会拿到你的变更，生产部署也不会执行
+- 直接改库后，其他开发者 `make start` 不会拿到你的变更，生产部署也不会执行
 - 迁移文件是唯一的数据库结构变更来源，它就是"数据库的 Git"
 
 **DataGrip 可以做的事**：

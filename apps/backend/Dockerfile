@@ -1,4 +1,4 @@
-ARG BASE_BUN_IMAGE=oven/bun:1-alpine
+ARG BASE_BUN_IMAGE=registry.cn-hangzhou.aliyunc.com/fubd_own/base-bun:1-alpine
 ARG BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
 
 FROM ${BASE_BUN_IMAGE} AS runner
