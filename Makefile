@@ -243,7 +243,8 @@ start: guard-stack-env install frontend-build compose-build compose-migrate
 	@$(MAKE) _ensure-watch
 
 push: guard-stack-env acr-login install frontend-build
-	@attempt=1; \
+	@echo "Building backend and nginx in parallel..."; \
+	(attempt=1; \
 	while true; do \
 		docker buildx build --platform $(BUILD_PLATFORMS) --push \
 			$(BACKEND_CACHE_ARGS) \
@@ -252,12 +253,13 @@ push: guard-stack-env acr-login install frontend-build
 			-t $(BACKEND_IMAGE) \
 			-f apps/backend/Dockerfile . && break; \
 		status=$$?; \
-		if [ $$attempt -ge $(BUILD_RETRY_COUNT) ]; then exit $$status; fi; \
-		echo "Backend image build failed (attempt $$attempt/$(BUILD_RETRY_COUNT)); retrying in $(BUILD_RETRY_DELAY)s"; \
+		if [ $$attempt -ge $(BUILD_RETRY_COUNT) ]; then echo "Backend build failed"; exit 1; fi; \
+		echo "Backend build failed (attempt $$attempt/$(BUILD_RETRY_COUNT)); retrying in $(BUILD_RETRY_DELAY)s"; \
 		attempt=$$((attempt + 1)); \
 		sleep $(BUILD_RETRY_DELAY); \
-	done
-	@attempt=1; \
+	done) & \
+	backend_pid=$$!; \
+	(attempt=1; \
 	while true; do \
 		docker buildx build --platform $(BUILD_PLATFORMS) --push \
 			$(NGINX_CACHE_ARGS) \
@@ -265,11 +267,15 @@ push: guard-stack-env acr-login install frontend-build
 			-t $(NGINX_IMAGE) \
 			-f infra/nginx/Dockerfile . && break; \
 		status=$$?; \
-		if [ $$attempt -ge $(BUILD_RETRY_COUNT) ]; then exit $$status; fi; \
-		echo "Nginx image build failed (attempt $$attempt/$(BUILD_RETRY_COUNT)); retrying in $(BUILD_RETRY_DELAY)s"; \
+		if [ $$attempt -ge $(BUILD_RETRY_COUNT) ]; then echo "Nginx build failed"; kill $$backend_pid 2>/dev/null; exit 1; fi; \
+		echo "Nginx build failed (attempt $$attempt/$(BUILD_RETRY_COUNT)); retrying in $(BUILD_RETRY_DELAY)s"; \
 		attempt=$$((attempt + 1)); \
 		sleep $(BUILD_RETRY_DELAY); \
-	done
+	done) & \
+	nginx_pid=$$!; \
+	wait $$backend_pid || exit 1; \
+	wait $$nginx_pid || exit 1; \
+	echo "All images built successfully"
 
 # ── remote ──────────────────────────────────────────────────────
 

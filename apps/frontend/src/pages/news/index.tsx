@@ -46,7 +46,7 @@ const News: React.FC = () => {
   return (
     <div style={{display: 'grid', gap: 20}}>
       <Typography.Title level={2} style={{marginBottom: 0}}>
-        News now33
+        News now
       </Typography.Title>
       <Typography.Paragraph style={{marginTop: 0}}>
         These entries are coming from MySQL through the Hono API.
