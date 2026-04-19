@@ -242,7 +242,7 @@ start: guard-stack-env install frontend-build compose-build compose-migrate
 	$(LOCAL_COMPOSE) up -d --remove-orphans backend nginx
 	@$(MAKE) _ensure-watch
 
-push: guard-stack-env acr-login frontend-build
+push: guard-stack-env acr-login install frontend-build
 	@attempt=1; \
 	while true; do \
 		docker buildx build --platform $(BUILD_PLATFORMS) --push \

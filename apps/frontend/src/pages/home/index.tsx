@@ -91,7 +91,7 @@ const Home: React.FC = () => {
               summary?.services ?? [
                 'React 19 + Rsbuild',
                 'Hono + TypeScript',
-                'Drizzle raw SQL + MySQL',
+                'Bun.sql + MySQL',
                 'Nginx + Docker Compose',
               ]
             ).map(service => (
@@ -112,7 +112,7 @@ const Home: React.FC = () => {
         <article className={styles.card}>
           <Title level={4}>Raw SQL stays visible</Title>
           <Paragraph>
-            The backend keeps database behavior close to the code you read every day, with Drizzle
+            The backend keeps database behavior close to the code you read every day, with Bun.sql
             used as the connection and SQL execution layer instead of hiding queries behind heavy
             repositories.
           </Paragraph>

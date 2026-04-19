@@ -10,10 +10,13 @@ const readString = (key: string, fallback?: string) => {
   return value;
 };
 
-const readNumber = (key: string, fallback: number) => {
+const readNumber = (key: string, fallback?: number) => {
   const rawValue = process.env[key];
 
   if (!rawValue) {
+    if (fallback === undefined) {
+      throw new Error(`Missing required environment variable: ${key}`);
+    }
     return fallback;
   }
 
@@ -30,7 +33,7 @@ export const env = {
   appName: readString('APP_NAME', 'Parrot'),
   nodeEnv: readString('NODE_ENV', 'development'),
   version: readString('VERSION', 'latest'),
-  port: readNumber('PORT', readNumber('BACKEND_PORT', 26031)),
+  port: readNumber('PORT') ?? readNumber('BACKEND_PORT', 26031),
   databaseHost: readString('DATABASE_HOST', '127.0.0.1'),
   databasePort: readNumber('DATABASE_PORT', 3306),
   databaseName: readString('MYSQL_DATABASE', 'parrot'),

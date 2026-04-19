@@ -135,14 +135,6 @@ app.post('/api/v1/meta', context => {
   });
 });
 
-app.post('/api/v1/system/test', async context => {
-  return context.json({
-    success: true,
-    data: {
-      count: 10,
-    },
-  });
-});
 
 let isShuttingDown = false;
 
